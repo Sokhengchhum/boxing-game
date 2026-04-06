@@ -14,7 +14,7 @@ resizeGame();
 
 // ======== SPRITE LOADER ========
 const SPRITES = {};
-const SPRITE_IDS = ['barrera','jackson','santos','titan','lee','blaze'];
+const SPRITE_IDS = ['barrera','jackson','santos','titan','lee','blaze', 'thereal', 'viper', 'blitz', 'mako'];
 // Offscreen canvas used for white-background removal
 const _spriteOffC = document.createElement('canvas');
 const _spriteOffX = _spriteOffC.getContext('2d');
@@ -30,21 +30,30 @@ loadSprites();
 let gameMode='2p',cpuDiff='easy';
 function setMode(m){
   gameMode=m;
-  document.getElementById('btn2p').classList.toggle('active',m==='2p');
-  document.getElementById('btn1p').classList.toggle('active',m==='1p');
+  const btn2p = document.getElementById('btn2p');
+  const btn1p = document.getElementById('btn1p');
+  if(btn2p) btn2p.classList.toggle('active',m==='2p');
+  if(btn1p) btn1p.classList.toggle('active',m==='1p');
+  
   const dSec = document.getElementById('diff-section');
   if(dSec) dSec.style.display=m==='1p'?'flex':'none';
-  const p2h = document.getElementById('p2-human');
-  if(p2h) p2h.style.display=m==='2p'?'block':'none';
-  const p2c = document.getElementById('p2-cpu');
-  if(p2c) p2c.style.display=m==='1p'?'block':'none';
-  const p2l = document.getElementById('p2label');
-  if(p2l) p2l.textContent=m==='1p'?'CPU — Blue':'Player 2 — Blue';
+  
   if(typeof window.updateSelUI === 'function') {
     window.wsSelectingPlayer=1; 
     window.updateSelUI();
   }
 }
+window.selectModeAndContinue = function(m) {
+  setMode(m);
+  document.getElementById('mode-selection').style.display = 'none';
+  document.getElementById('start-screen').style.display = 'flex';
+  
+  // Start the background loop for the selection screen if it was paused
+  if(!gameRunning) {
+    cancelAnimationFrame(wsPreviewTimer);
+    drawPreviewStage();
+  }
+};
 function setDiff(d){
   cpuDiff=d;
   ['Easy','Medium','Hard','Boss'].forEach(x=>document.getElementById('d'+x).classList.toggle('active',x.toLowerCase()===d));
@@ -454,25 +463,18 @@ function drawSelectionFighter(ctx, f) {
 function drawBoxer(ctx, f) {
   const state = f.state;
   const pp = f.curPose || {};
-
-  // ── Read ALL animation parameters ──
-  const pAnimLean    = pp.upperLean    ?? 0;
-  const pAnimY       = pp.upperY      ?? 0;
-  const pAnimLungeX  = pp.lungeX      ?? 0;
-  const pAnimSquash  = pp.squash      ?? 1;
-  const pLowerSpread = pp.lowerSpread ?? 0;
-
-  // NEW — Real fighter body mechanics
-  const pShoulderRot = pp.shoulderRot ?? 0;   // independent shoulder rotation
-  const pRearArmX    = pp.rearArmX   ?? 0;   // rear glove X offset
-  const pRearArmY    = pp.rearArmY   ?? 0;   // rear glove Y offset
-  const pHeadTiltX   = pp.headTiltX  ?? 0;   // head lateral shift
-  const pHeadTiltY   = pp.headTiltY  ?? 0;   // head vertical shift
-  const pFrontFootX  = pp.frontFootX ?? 0;   // front foot step
-  const pRearFootX   = pp.rearFootX  ?? 0;   // rear foot step
-  const pFrontKnee   = pp.frontKnee  ?? 0;   // front knee bend
-  const pRearKnee    = pp.rearKnee   ?? 0;   // rear knee bend
-  const pTorsoTwist  = pp.torsoTwist ?? 0;   // upper/lower body separation
+  const pAnimLean   = pp.upperLean  ?? 0;
+  const pAnimY      = pp.upperY     ?? 0;
+  const pAnimLungeX = pp.lungeX     ?? 0;
+  const pAnimSquash = pp.squash     ?? 1;
+  // New real-fighter params
+  const pShoulderTwist = pp.shoulderTwist ?? 0;  // shoulder rotation degrees
+  const pHeadTilt      = pp.headTilt      ?? 0;  // head lean toward/away from punch
+  const pLowerSpread   = pp.lowerSpread   ?? 0;  // leg stance width offset
+  const pHipX          = pp.hipX          ?? 0;  // hip lateral shift (weight transfer)
+  const pBackElbow     = pp.backElbow     ?? 55; // guard hand elbow angle
+  const pRearFootLift  = pp.rearFootLift  ?? 0;  // rear heel lift for foot pivot
+  const pGuardY        = pp.guardY        ?? 0;  // guard hand vertical offset
 
   const isDuck2   = state === 'duck';
   const hurt      = state === 'hurt';
@@ -481,23 +483,53 @@ function drawBoxer(ctx, f) {
   const isDash    = state === 'dash';
 
   let bodyLean = hurt ? 14 : isPull ? -18 : isSlip ? 12 : isDash ? -15 : 0;
-  bodyLean += pAnimLean;
+  bodyLean += pAnimLean;  
   let bodyY = isDuck2 ? 16 : 0;
-  bodyY += pAnimY;
+  bodyY += pAnimY;        
 
   // ── RENDER HIGH-FIDELITY PIXEL ART SPRITES IF AVAILABLE ──
   const img = SPRITES[f.rosterId];
   if (img && img.complete && img.naturalWidth > 0) {
     ctx.save();
+    
+    // Check if it's a multi-frame sprite sheet (e.g. 6 frame strip)
+    const isSheet = img.naturalWidth > img.naturalHeight * 1.5;
+    let sx = 0, sy = 0, sW = img.naturalWidth, sH = img.naturalHeight;
+    
+    if (isSheet) {
+      // Divide by 6 frames horizontally to match the processed sheet
+      const cols = 6;
+      sW = img.naturalWidth / cols;
+      let frameIdx = 1; // Default to Idle / Walking pose
+      
+      if (state === 'jab' || state === 'cross' || state === 'upcut' || state === 'super') frameIdx = 0; // Extending Punch
+      else if (state === 'block') frameIdx = 2; // Guard up
+      else if (state === 'dash' || state === 'hook' || state === 'overhand' || state === 'kick') frameIdx = 3; // Lunge action
+      else if (state === 'duck') frameIdx = 4; // Crouch stance
+      else if (state === 'hurt' || state === 'ko') frameIdx = 5; // Hit reaction
+      
+      sx = frameIdx * sW;
+    }
+
+    // Core animation physics (Translating rigid sprite with squash/stretch!)
     ctx.translate(pAnimLungeX, bodyY);
     ctx.rotate(bodyLean * Math.PI / 180);
-    ctx.scale(1, pAnimSquash);
+    // Mild procedural squash alongside frame data
+    ctx.scale(1, isSheet ? 1.0 + (pAnimSquash-1.0)*0.5 : pAnimSquash);
+
+    // Ground shadow
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.beginPath(); ctx.ellipse(-pAnimLungeX, 4, 28, 8, 0, 0, Math.PI*2); ctx.fill();
-    const aspect = img.naturalWidth / img.naturalHeight;
-    const drawH = f.spriteH || 185;
+    ctx.beginPath(); ctx.ellipse(-pAnimLungeX, 4, 30, 8, 0, 0, Math.PI*2); ctx.fill();
+
+    // Sprite drawing (origin is bottom-center, matching Fighter coordinate system)
+    const aspect = sW / sH;
+    const drawH = f.spriteH || 185; 
     const drawW = aspect * drawH;
-    ctx.drawImage(img, -drawW/2, -drawH, drawW, drawH);
+    
+    // Draw the cropped frame!
+    ctx.drawImage(img, sx, sy, sW, sH, -drawW/2, -drawH, drawW, drawH);
+
+    // Attack Auras
     if (state === 'super' || state === 'dash') {
       ctx.save(); ctx.globalAlpha = 0.5;
       const aura = state === 'dash' ? '#00ccff' : '#ffcc00';
@@ -515,9 +547,7 @@ function drawBoxer(ctx, f) {
     return;
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  PROCEDURAL CANVAS DRAWING — Full-body articulated boxer
-  // ══════════════════════════════════════════════════════════════
+  // ── FALLBACK: PROCEDURAL CANVAS DRAWING ──
   const skin  = f.skinColor;
   const trunk = f.trunkColor;
   const glove = f.gloveColor;
@@ -531,14 +561,17 @@ function drawBoxer(ctx, f) {
   const blocking  = f.blocking || state === 'block';
   const jumping   = !f.onGround;
 
-  // ── ELBOW-BASED ARM POSITIONING ──
+  // ── ELBOW-BASED ARM POSITIONING (driven by ANIM_PHASES frontElbow) ──
+  // frontElbow: 0° = full extension (jab/cross peak), 90° = hook, 48° = guard
   const elbowAngle = (f.curPose && f.curPose.frontElbow !== undefined) ? f.curPose.frontElbow : 48;
 
+  // Shoulder anchor
   const sX = 16, sY = -74;
+  // Reach: shortens as elbow bends  (cosine mapping)
   const maxReach = 58;
   const bendFactor = Math.max(0, Math.cos(elbowAngle * Math.PI / 180));
   const reach = maxReach * (0.38 + 0.62 * bendFactor);
-
+  // Arm direction (forward angle from straight-down, depends on move type)
   let armDirDeg;
   if (isJab || isCross || isSuper)    armDirDeg = 82;
   else if (isDash)                    armDirDeg = 80;
@@ -554,96 +587,79 @@ function drawBoxer(ctx, f) {
   const pGy = sY + Math.sin(aRad) * reach;
   const pGr = (isSuper || isDash) ? 20 : 17;
 
+  // Elbow joint (midpoint bent perpendicular to arm axis by sin of angle)
   const mX = (sX + pGx) * 0.5, mY = (sY + pGy) * 0.5;
   const perpBend = Math.sin(elbowAngle * Math.PI / 180) * 18;
   const dX = pGx - sX, dY = pGy - sY;
   const dLen = Math.sqrt(dX*dX + dY*dY) || 1;
-  const hookMul = isHook ? -1 : 1;
+  const hookMul = isHook ? -1 : 1;  // hook elbow pops backward
   const elbX = mX + (-dY / dLen) * perpBend * hookMul;
   const elbY = mY + ( dX / dLen) * perpBend * hookMul;
 
-  // ── Rear guard glove positioning — now driven by animation ──
-  let gGx = -26 + pRearArmX, gGy = -86 + pRearArmY, gGr = 15;
-  if (blocking)  { gGx = -16 + pRearArmX; gGy = -100 + pRearArmY; gGr = 16; }
-  if (hurt)      { gGx = -14 + pRearArmX; gGy = -70 + pRearArmY; }
-  if (isHook)    { gGx = -30 + pRearArmX; gGy = -74 + pRearArmY; }
-  if (isUpcut)   { gGx = -22 + pRearArmX; gGy = -80 + pRearArmY; }
+  // Guard / back glove — now driven by pose data for fluid animation
+  const guardBend = Math.max(0, Math.cos(pBackElbow * Math.PI / 180));
+  let gGx = -20 - guardBend * 8, gGy = -86 + pGuardY, gGr = 15;
+  if (blocking)  { gGx = -16; gGy = -100 + pGuardY; gGr = 16; }
+  if (hurt)      { gGx = -14; gGy = -70 + pGuardY; }
+  if (isHook)    { gGx = -28 - guardBend * 4; gGy = -76 + pGuardY; }
+  if (isUpcut)   { gGx = -22; gGy = -80 + pGuardY; }
 
   ctx.save();
-  ctx.translate(pAnimLungeX, bodyY);
+  ctx.translate(pAnimLungeX, bodyY);   // << LUNGE — cross lunges 30px, jab 28px forward!
 
-  // ── GROUND SHADOW (stretches with stance width) ──
-  const shadowW = 28 + Math.abs(pFrontFootX - pRearFootX) * 0.3 + pLowerSpread * 0.5;
+  // ── GROUND SHADOW ──
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
-  ctx.beginPath(); ctx.ellipse(0, 4, shadowW, 8, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, 4, 28, 8, 0, 0, Math.PI*2); ctx.fill();
 
   ctx.save();
   ctx.rotate(bodyLean * Math.PI / 180);
-  ctx.scale(1, pAnimSquash);
+  ctx.scale(1, pAnimSquash);            // << SQUASH/STRETCH — uppercut dip=0.74, explode=1.18!
+
 
   // ══════════════════════════════════
-  //  LEGS — now with stepping + knee bends (real fighter footwork)
+  // BOOTS / LEGS  (real footwork: stance width + weight shift + foot pivot)
   // ══════════════════════════════════
-  function drawLeg(side, footOffset, kneeBend) {
-    // side: 1 = front leg, -1 = back leg
-    const baseStanceW = isDuck2 ? 16 : jumping ? 12 : 10;
-    const stanceW = baseStanceW + pLowerSpread * 0.5;
+  function drawLeg(side) {
+    // side: -1 = back leg (rear), +1 = front leg (lead)
+    const baseStance = isDuck2 ? 16 : jumping ? 12 : 10;
+    const stanceW = baseStance + pLowerSpread * 0.5;  // wider during power punches
+    const hipShift = pHipX * 0.3 * side;  // weight transfer shifts legs
+    const kx = side * stanceW + hipShift;
+    const ky = isDuck2 ? -14 : jumping ? -16 : -10;
+    const ankleX = side * (stanceW - 2) + hipShift;
+    let ankleY = isDuck2 ? 8 : jumping ? 10 : 4;
+    // Rear foot lift (heel pivot during cross/hooks) — only back leg
+    const heelLift = (side === -1) ? pRearFootLift : 0;
+    ankleY -= heelLift * 0.4;
 
-    // Foot position — driven by animation footstep offset
-    const footX = side * stanceW + footOffset;
-    const footBaseY = isDuck2 ? 8 : jumping ? 10 : 4;
-
-    // Knee bend — higher kneeBend = more bent = lower body
-    const kneeAmount = Math.min(kneeBend, 20);
-    const kneeDropY = kneeAmount * 0.6;  // knee bends push ankle/boot down slightly
-    const kneeOutX = side * kneeAmount * 0.3; // knee pushes outward when bent
-    const ankleY = footBaseY + kneeDropY;
-
-    // Hip joint anchor
-    const hipX = side * 4;
-    const hipY = -18;
-
-    // Knee position (between hip and ankle, pushed out by bend)
-    const kneeX = (hipX + footX) * 0.5 + kneeOutX;
-    const kneeY = (hipY + ankleY) * 0.5 - 4 + kneeDropY * 0.3;
-
-    // ── Thigh (shorts color) ──
+    // Thigh (shorts color)
     ctx.fillStyle = trunk;
     ctx.beginPath();
-    ctx.moveTo(hipX - 8, hipY);
-    ctx.quadraticCurveTo(kneeX - 3, kneeY, footX - 6, ankleY);
-    ctx.quadraticCurveTo(kneeX + 8, kneeY + 4, hipX + 8, hipY);
+    ctx.moveTo(side * -12 + hipShift, -18);
+    ctx.quadraticCurveTo(kx, ky, ankleX - side*8, ankleY);
+    ctx.quadraticCurveTo(kx + side*4, ky+8, side * 12 + hipShift, -18);
     ctx.closePath(); ctx.fill();
 
-    // Thigh muscle highlight
-    ctx.fillStyle = shadeColor(trunk, 10);
-    ctx.beginPath();
-    ctx.ellipse((hipX + kneeX)*0.5, (hipY + kneeY)*0.5, 6, 4, Math.atan2(kneeY-hipY, kneeX-hipX), 0, Math.PI*2);
-    ctx.fill();
-
-    // ── Shin (skin) ──
-    const shinLen = 32 - kneeDropY * 0.3;
-    const skinG = ctx.createLinearGradient(footX-8, ankleY, footX+8, ankleY+shinLen);
+    // Shin (skin)
+    const skinG = ctx.createLinearGradient(ankleX-8, ankleY, ankleX+8, ankleY+34);
     skinG.addColorStop(0, shadeColor(skin,12)); skinG.addColorStop(1, shadeColor(skin,-10));
     ctx.fillStyle = skinG;
     ctx.beginPath();
-    ctx.moveTo(footX-7, ankleY);
-    ctx.quadraticCurveTo(footX+side*3, ankleY+shinLen*0.5, footX-3, ankleY+shinLen);
-    ctx.quadraticCurveTo(footX+side*5, ankleY+shinLen*0.55, footX+8, ankleY);
+    ctx.moveTo(ankleX-8, ankleY);
+    ctx.quadraticCurveTo(ankleX+side*3, ankleY+16, ankleX-4, ankleY+34 - heelLift*0.3);
+    ctx.quadraticCurveTo(ankleX+side*6, ankleY+18, ankleX+9, ankleY);
     ctx.closePath(); ctx.fill();
 
-    // Calf muscle
-    ctx.fillStyle = shadeColor(skin, 6);
-    ctx.beginPath();
-    ctx.ellipse(footX + side*2, ankleY + shinLen*0.35, 5, 7, 0.1*side, 0, Math.PI*2);
-    ctx.fill();
-
-    // ── Boot (tall boxing boot) ──
-    const bx = footX + side*1;
-    const by = ankleY + shinLen - 2;
+    // Boot (tall boxing boot)
+    const bx = ankleX + side*1;
+    const by = ankleY + 30 - heelLift*0.3;
+    const bootTilt = (side === -1) ? pRearFootLift * 0.02 : 0;  // rear boot tilts when pivoting
+    ctx.save();
+    if(bootTilt) { ctx.translate(bx, by+6); ctx.rotate(bootTilt); ctx.translate(-bx, -(by+6)); }
+    // Boot shaft
     ctx.fillStyle = '#141414';
     ctx.beginPath(); ctx.roundRect(bx-9, by-14, 18, 20, 3); ctx.fill();
-    // Boot cuff
+    // Boot white top cuff
     ctx.fillStyle = '#e8e8e8';
     ctx.fillRect(bx-9, by-14, 18, 5);
     // Boot sole
@@ -651,19 +667,19 @@ function drawBoxer(ctx, f) {
     ctx.beginPath(); ctx.ellipse(bx+side*1, by+6, 11, 5, 0.1*side, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = '#ddd';
     ctx.beginPath(); ctx.ellipse(bx+side*1, by+7, 10, 2, 0.1*side, 0, Math.PI*2); ctx.fill();
-    // Boot laces
+    // Boot lace dots
     ctx.fillStyle = '#555';
     for(let li=0;li<3;li++){
       ctx.beginPath(); ctx.arc(bx-3, by-11+li*4, 1.2, 0, Math.PI*2); ctx.fill();
       ctx.beginPath(); ctx.arc(bx+3, by-11+li*4, 1.2, 0, Math.PI*2); ctx.fill();
     }
+    ctx.restore();
   }
-  // Draw back leg first (with rearFootX + rearKnee), then front leg on top
-  drawLeg(-1, pRearFootX * -0.5, pRearKnee);
-  drawLeg(1, pFrontFootX * 0.5, pFrontKnee);
+  // Back leg first, front leg on top
+  drawLeg(-1); drawLeg(1);
 
   // ══════════════════════════════════
-  //  SHORTS (wide, pro boxer style)
+  // SHORTS (wide, pro boxer style)
   // ══════════════════════════════════
   const sg = ctx.createLinearGradient(-22, -20, 0, 14);
   sg.addColorStop(0, shadeColor(trunk,15));
@@ -694,52 +710,62 @@ function drawBoxer(ctx, f) {
   ctx.fillRect(-22,-28,44,3);
 
   // ══════════════════════════════════
-  //  TORSO — now with independent shoulder rotation (torsoTwist)
-  //  This creates the kinetic chain separation visible in real boxing:
-  //  hips face one direction, shoulders twisted another = power
+  // TORSO (muscular, wide-shoulder cartoon + shoulder twist)
   // ══════════════════════════════════
+  // Shoulder twist: simulate 3D rotation by scaling torso width
+  const twistScale = 1 - Math.abs(pShoulderTwist) * 0.004; // subtle narrowing when twisted
+  const twistShift = pShoulderTwist * 0.15; // lateral shift for rotation feel
   ctx.save();
-  // Apply torso twist — shoulders rotate independently from hips
-  const twistRad = (pTorsoTwist + pShoulderRot * 0.3) * Math.PI / 180;
-  ctx.rotate(twistRad);
-
-  const tg = ctx.createLinearGradient(-22,-80, 22,-20);
-  tg.addColorStop(0, shadeColor(skin,16));
+  ctx.translate(twistShift, 0);
+  ctx.scale(twistScale, 1);
+  const tg = ctx.createLinearGradient(-26,-80, 26,-20);
+  tg.addColorStop(0, shadeColor(skin,25));
   tg.addColorStop(0.5, skin);
-  tg.addColorStop(1, shadeColor(skin,-18));
+  tg.addColorStop(1, shadeColor(skin,-25));
   ctx.fillStyle = tg;
+  
+  // V-taper body shape
   ctx.beginPath();
-  ctx.moveTo(-22,-22);
-  ctx.bezierCurveTo(-28,-45,-28,-72,-16,-80);
-  ctx.bezierCurveTo(-8,-86, 8,-86, 16,-80);
-  ctx.bezierCurveTo(28,-72, 28,-45, 22,-22);
+  ctx.moveTo(-18,-20); // waist left
+  ctx.quadraticCurveTo(-22,-45, -30,-72); // lat left
+  ctx.quadraticCurveTo(-32,-85, -16,-82); // shoulder left
+  ctx.lineTo(16,-82); // collarbone
+  ctx.quadraticCurveTo(32,-85, 30,-72); // shoulder right
+  ctx.quadraticCurveTo(22,-45, 18,-20); // waist right
   ctx.closePath(); ctx.fill();
+  
+  // Collarbones
+  ctx.strokeStyle = shadeColor(skin,-30); ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-18,-80); ctx.lineTo(-4,-76); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo( 18,-80); ctx.lineTo( 4,-76); ctx.stroke();
+  ctx.restore();
 
-  // Shoulder definition (visible rotation gives 3D depth)
-  const shoulderShift = pShoulderRot * 0.12;
-  // Front shoulder rises, back shoulder drops — visible rotation
-  ctx.fillStyle = shadeColor(skin, 8);
-  ctx.beginPath(); ctx.ellipse(16 + shoulderShift, -76, 10, 8, 0.3, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = shadeColor(skin, -8);
-  ctx.beginPath(); ctx.ellipse(-16 - shoulderShift*0.5, -76, 9, 7, -0.3, 0, Math.PI*2); ctx.fill();
+  // Pecs (square/muscular)
+  ctx.fillStyle = shadeColor(skin,-15);
+  ctx.beginPath(); 
+  ctx.moveTo(-2,-74); ctx.lineTo(-14,-74); ctx.quadraticCurveTo(-22,-70,-22,-60); ctx.quadraticCurveTo(-14,-56,-2,-58); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); 
+  ctx.moveTo( 2,-74); ctx.lineTo( 14,-74); ctx.quadraticCurveTo( 22,-70, 22,-60); ctx.quadraticCurveTo( 14,-56, 2,-58); ctx.closePath(); ctx.fill();
 
-  // Chest definition (pec shadow) — shifts with shoulder rotation
-  ctx.fillStyle = shadeColor(skin,-22);
-  ctx.beginPath(); ctx.ellipse(-6 - shoulderShift*0.3, -60, 12, 9, -0.3, 0, Math.PI); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(6 + shoulderShift*0.3, -60, 12, 9, 0.3, 0, Math.PI); ctx.fill();
-  // Center chest line
-  ctx.strokeStyle = shadeColor(skin,-15); ctx.lineWidth=1.5;
-  ctx.beginPath(); ctx.moveTo(shoulderShift*0.2,-80); ctx.lineTo(shoulderShift*0.1,-22); ctx.stroke();
-  // Abs
-  ctx.fillStyle = shadeColor(skin,-14);
+  // Center abs line
+  ctx.strokeStyle = shadeColor(skin,-35); ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(0,-58); ctx.lineTo(0,-24); ctx.stroke();
+  
+  // 6-pack Abs
+  ctx.fillStyle = shadeColor(skin,-20);
   for(let ai=0;ai<3;ai++){
-    ctx.beginPath(); ctx.ellipse(-5,-40+ai*12,5,4,0,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse( 5,-40+ai*12,5,4,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(-10, -52+ai*10, 8, 7, 2); ctx.fill();
+    ctx.beginPath(); ctx.roundRect( 2, -52+ai*10, 8, 7, 2); ctx.fill();
   }
+  // Obliques
+  ctx.fillStyle = shadeColor(skin,-25);
+  ctx.beginPath(); ctx.moveTo(-18,-45); ctx.lineTo(-11,-35); ctx.lineTo(-16,-25); ctx.fill();
+  ctx.beginPath(); ctx.moveTo( 18,-45); ctx.lineTo( 11,-35); ctx.lineTo( 16,-25); ctx.fill();
 
   // ══════════════════════════════════
-  //  BACK GLOVE (guard arm) — now tracks with animation
+  // BACK GLOVE (guard, left arm)
   // ══════════════════════════════════
+  // Back arm
   ctx.fillStyle = shadeColor(skin,-10);
   ctx.beginPath();
   ctx.moveTo(-18,-74);
@@ -751,94 +777,123 @@ function drawBoxer(ctx, f) {
   ggr.addColorStop(0,shadeColor(glove,30)); ggr.addColorStop(1,shadeColor(glove,-20));
   ctx.fillStyle = ggr;
   ctx.beginPath(); ctx.ellipse(gGx,gGy,gGr,gGr-2,0,0,Math.PI*2); ctx.fill();
+  // Back Glove wrist wrap
+  ctx.fillStyle = '#f0e8d0';
+  ctx.beginPath(); ctx.ellipse(gGx-2,gGy+gGr-2,gGr*0.7,5,0,0,Math.PI*2); ctx.fill();
+  // Glove thumb
   ctx.fillStyle = shadeColor(glove,-25);
   ctx.beginPath(); ctx.ellipse(gGx-9,gGy-5,6,4,-0.5,0,Math.PI*2); ctx.fill();
+  // Glove seam
   ctx.strokeStyle = shadeColor(glove,-35); ctx.lineWidth=1.5;
   ctx.beginPath(); ctx.arc(gGx,gGy,gGr*0.65,Math.PI*0.2,Math.PI*0.9); ctx.stroke();
+  // Glove shine
   ctx.fillStyle = 'rgba(255,255,255,0.32)';
   ctx.beginPath(); ctx.ellipse(gGx+5,gGy-6,7,5,-0.3,0,Math.PI*2); ctx.fill();
 
   // ══════════════════════════════════
-  //  HEAD — now with tilt/bob for realistic movement
-  //  Boxers tuck their chin behind the shoulder during punches.
+  // HEAD (Realistic, fierce fighter)
   // ══════════════════════════════════
-  const baseHeadY = hurt ? -102 : isPull ? -108 : -108;
-  const headX = pHeadTiltX * 0.5;               // head shifts laterally
-  const headY = baseHeadY + pHeadTiltY * 0.4;   // head drops/rises
-
-  // Neck
-  const neckG = ctx.createLinearGradient(-7+headX,-85,7+headX,-85);
-  neckG.addColorStop(0,shadeColor(skin,-10)); neckG.addColorStop(0.5,skin); neckG.addColorStop(1,shadeColor(skin,-10));
+  const headY = hurt ? -100 : isPull ? -108 : -106;
+  // Head tilt: fighters tuck chin behind shoulder during punches
+  const headShiftX = pHeadTilt * 0.12;  // lateral head movement
+  const headShiftY = Math.abs(pHeadTilt) * 0.06; // slight dip when tilting
+  ctx.save();
+  ctx.translate(headShiftX, headShiftY);
+  ctx.rotate(pHeadTilt * Math.PI / 180 * 0.3); // subtle head rotation
+  
+  // Neck (thicker, muscular)
+  const neckG = ctx.createLinearGradient(-10,-85,10,-85);
+  neckG.addColorStop(0,shadeColor(skin,-15)); neckG.addColorStop(0.5,skin); neckG.addColorStop(1,shadeColor(skin,-25));
   ctx.fillStyle = neckG;
-  ctx.beginPath(); ctx.roundRect(-7+headX,-88+pHeadTiltY*0.2,14,16,3); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-10, -82); ctx.lineTo(-11, -95); ctx.lineTo(11, -95); ctx.lineTo(10, -82); ctx.fill();
+  // Trapezius muscles slope
+  ctx.beginPath(); ctx.moveTo(-20,-82); ctx.quadraticCurveTo(-15,-92,-10,-95); ctx.lineTo(10,-95); ctx.quadraticCurveTo(15,-92,20,-82); ctx.fill();
 
-  // Head shape
-  const hg = ctx.createRadialGradient(3+headX, headY-3, 2, headX, headY, 20);
-  hg.addColorStop(0, shadeColor(skin,20));
-  hg.addColorStop(0.5, skin);
-  hg.addColorStop(1, shadeColor(skin,-18));
+  // Head base - jawline and cheekbones
+  const hg = ctx.createRadialGradient(4, headY-4, 2, 0, headY, 22);
+  hg.addColorStop(0, shadeColor(skin,15));
+  hg.addColorStop(0.6, skin);
+  hg.addColorStop(1, shadeColor(skin,-20));
   ctx.fillStyle = hg;
   ctx.beginPath();
-  ctx.ellipse(headX, headY, 18, 22, pHeadTiltX * 0.008, 0, Math.PI*2); ctx.fill();
+  ctx.moveTo(0, headY+14); // Chin
+  ctx.quadraticCurveTo(14, headY+12, 16, headY); // Right Jaw
+  ctx.quadraticCurveTo(17, headY-18, 10, headY-22); // Right Temple
+  ctx.quadraticCurveTo(0, headY-26, -10, headY-22); // Top Head
+  ctx.quadraticCurveTo(-17, headY-18, -16, headY); // Left Temple
+  ctx.quadraticCurveTo(-14, headY+12, 0, headY+14); // Left Jaw
+  ctx.closePath(); ctx.fill();
 
-  // Ear
-  ctx.fillStyle = shadeColor(skin,-12);
-  ctx.beginPath(); ctx.ellipse(-18+headX, headY+2, 5, 7, 0.2, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = shadeColor(skin,-22);
-  ctx.beginPath(); ctx.ellipse(-18+headX, headY+2, 2.5, 4, 0.2, 0, Math.PI*2); ctx.fill();
+  // Ears
+  ctx.fillStyle = shadeColor(skin,-15);
+  ctx.beginPath(); ctx.ellipse(-16, headY-2, 4, 7, 0.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 16, headY-2, 4, 7, -0.1, 0, Math.PI*2); ctx.fill();
 
-  // Hair
-  const hairCol = '#0a0a0a';
-  ctx.fillStyle = hairCol;
-  ctx.beginPath();
-  ctx.ellipse(headX, headY-18, 17, 7, 0, Math.PI, Math.PI*2); ctx.fill();
-  ctx.fillRect(-17+headX, headY-22, 34, 7);
+  // Eye sockets / Brow ridge (deep shadow for fierce look)
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.moveTo(-14, headY-10); ctx.quadraticCurveTo(-6, headY-12, -2, headY-8); ctx.quadraticCurveTo(6, headY-12, 14, headY-10); ctx.quadraticCurveTo(10, headY-2, 2, headY-6); ctx.quadraticCurveTo(-10, headY-2, -14, headY-10); ctx.fill();
 
-  // Eyebrows
-  ctx.fillStyle = '#0a0a0a';
-  ctx.beginPath(); ctx.roundRect(-13+headX, headY-12, 9, 3, 2); ctx.fill();
-  ctx.beginPath(); ctx.roundRect(4+headX, headY-12, 9, 3, 2); ctx.fill();
+  // Hair / Bald shadowing
+  if (!f.beard) { /* default to bald/buzzcut fade */
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.beginPath(); ctx.moveTo(-16, headY-6); ctx.quadraticCurveTo(0, headY-18, 16, headY-6); ctx.quadraticCurveTo(10, headY-22, 0, headY-26); ctx.quadraticCurveTo(-10, headY-22, -16, headY-6); ctx.fill();
+  }
 
-  // Eyes
+  // Eyebrows (angry V shape)
+  ctx.strokeStyle = '#050505'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-12, headY-10); ctx.lineTo(-4, headY-7); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo( 12, headY-10); ctx.lineTo( 4, headY-7); ctx.stroke();
+
+  // Eyes (serious squint)
   ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.ellipse(-7+headX, headY-5, 4, 3, 0, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(7+headX, headY-5, 4, 3, 0, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#111';
-  ctx.beginPath(); ctx.arc(-7+headX, headY-5, 2.2, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(7+headX, headY-5, 2.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-7, headY-6, 3.5, 1.5, 0.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 7, headY-6, 3.5, 1.5, -0.1, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#111'; // Iris
+  ctx.beginPath(); ctx.arc(-7, headY-6, 1.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 7, headY-6, 1.2, 0, Math.PI*2); ctx.fill();
 
-  // Nose
-  ctx.fillStyle = shadeColor(skin,-20);
-  ctx.beginPath(); ctx.ellipse(headX, headY+3, 5, 4, 0, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = shadeColor(skin,-32);
-  ctx.beginPath(); ctx.arc(-4+headX, headY+5, 3, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(4+headX, headY+5, 3, 0, Math.PI*2); ctx.fill();
+  // Nose (strong boxing nose)
+  ctx.fillStyle = shadeColor(skin,-15);
+  ctx.beginPath(); ctx.moveTo(-3, headY-6); ctx.lineTo(3, headY-6); ctx.lineTo(4, headY+4); ctx.lineTo(-4, headY+4); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = shadeColor(skin,-35);
+  ctx.beginPath(); ctx.arc(-3, headY+4, 2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 3, headY+4, 2, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.15)'; // Nose bridge highlight
+  ctx.fillRect(-1, headY-4, 2, 7);
 
-  // Mouth
-  ctx.strokeStyle = shadeColor(skin,-25); ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(headX, headY+8, 5, 0.15, Math.PI-0.15); ctx.stroke();
+  // Mouthpiece / Lips
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.ellipse(0, headY+9, 5, 1.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ff3333'; // mouthpiece color
+  ctx.beginPath(); ctx.ellipse(0, headY+9, 4, 1, 0, 0, Math.PI*2); ctx.fill();
 
-  // Beard
+  // Beard — short boxer stubble (not a big blob)
   if(f.beard){
     ctx.save();
     ctx.globalAlpha = 0.82;
+    // Jawline stubble
     ctx.fillStyle = shadeColor(skin, -38);
     ctx.beginPath();
-    ctx.ellipse(headX, headY+12, 14, 9, 0, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(headX, headY+18, 9, 5, 0, 0, Math.PI*2); ctx.fill();
+    // Bottom of face stubble area
+    ctx.ellipse(0, headY+12, 14, 9, 0, 0, Math.PI*2); ctx.fill();
+    // Chin
+    ctx.beginPath(); ctx.ellipse(0, headY+18, 9, 5, 0, 0, Math.PI*2); ctx.fill();
+    // Upper lip / mustache
     ctx.fillStyle = shadeColor(skin, -44);
-    ctx.beginPath(); ctx.ellipse(-4+headX, headY+6, 5, 2.5, 0.2, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(4+headX, headY+6, 5, 2.5, -0.2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-4, headY+6, 5, 2.5, 0.2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse( 4, headY+6, 5, 2.5, -0.2, 0, Math.PI*2); ctx.fill();
     ctx.restore();
   }
 
-  // Headband
+  // Headband sweat
   ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.arc(headX, headY, 18, Math.PI*1.1, Math.PI*1.9); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, headY, 18, Math.PI*1.1, Math.PI*1.9); ctx.stroke();
+  ctx.restore(); // end headTilt transform
 
   // ══════════════════════════════════
-  //  FRONT ARM + PUNCH GLOVE (elbow-articulated)
+  // FRONT ARM + PUNCH GLOVE  (elbow-articulated)
   // ══════════════════════════════════
+  // Upper arm  (shoulder → elbow)
   const armG = ctx.createLinearGradient(sX, sY, elbX, elbY);
   armG.addColorStop(0, skin); armG.addColorStop(1, shadeColor(skin, -8));
   ctx.fillStyle = armG;
@@ -847,17 +902,10 @@ function drawBoxer(ctx, f) {
   ctx.quadraticCurveTo(elbX - 5, elbY, elbX - 3, elbY + 5);
   ctx.quadraticCurveTo(elbX + 6, elbY + 2, sX + 7, sY + 2);
   ctx.closePath(); ctx.fill();
-  // Bicep bulge (flexing during punch)
-  const bicepFlex = Math.max(0, Math.sin(elbowAngle * Math.PI / 180)) * 4;
-  if (bicepFlex > 1) {
-    ctx.fillStyle = shadeColor(skin, 6);
-    const bMx = (sX + elbX) * 0.45, bMy = (sY + elbY) * 0.45;
-    ctx.beginPath(); ctx.ellipse(bMx, bMy, 5 + bicepFlex, 4, Math.atan2(elbY-sY, elbX-sX), 0, Math.PI*2); ctx.fill();
-  }
   // Elbow cap
   ctx.fillStyle = shadeColor(skin, -14);
   ctx.beginPath(); ctx.ellipse(elbX, elbY, 5, 4, Math.atan2(dY,dX), 0, Math.PI*2); ctx.fill();
-  // Forearm
+  // Forearm  (elbow → glove)
   const foreG = ctx.createLinearGradient(elbX, elbY, pGx, pGy);
   foreG.addColorStop(0, shadeColor(skin, -6)); foreG.addColorStop(1, shadeColor(skin, -14));
   ctx.fillStyle = foreG;
@@ -867,28 +915,27 @@ function drawBoxer(ctx, f) {
   ctx.quadraticCurveTo(fMx - 4, fMy, pGx - 2, pGy + pGr - 2);
   ctx.quadraticCurveTo(fMx + 5, fMy, elbX + 5, elbY + 2);
   ctx.closePath(); ctx.fill();
-  // Forearm muscle
-  ctx.fillStyle = shadeColor(skin, -4);
-  ctx.beginPath(); ctx.ellipse(fMx+1, fMy, 4, 6, Math.atan2(pGy-elbY, pGx-elbX), 0, Math.PI*2); ctx.fill();
 
   // Punch Glove
   const pgr2 = ctx.createRadialGradient(pGx,pGy,2,pGx,pGy,pGr+6);
   pgr2.addColorStop(0,shadeColor(glove,35)); pgr2.addColorStop(0.5,glove); pgr2.addColorStop(1,shadeColor(glove,-15));
   ctx.fillStyle = pgr2;
   ctx.beginPath(); ctx.ellipse(pGx,pGy,pGr,pGr-2,0,0,Math.PI*2); ctx.fill();
+  // Glove wrist wrap
   ctx.fillStyle = '#f0e8d0';
   ctx.beginPath(); ctx.ellipse(pGx-2,pGy+pGr-2,pGr*0.7,5,0,0,Math.PI*2); ctx.fill();
+  // Glove thumb
   ctx.fillStyle = shadeColor(glove,-22);
   ctx.beginPath(); ctx.ellipse(pGx-10,pGy-6,7,5,-0.5,0,Math.PI*2); ctx.fill();
+  // Glove seam
   ctx.strokeStyle = shadeColor(glove,-30); ctx.lineWidth=2;
   ctx.beginPath(); ctx.arc(pGx,pGy,pGr*0.6,Math.PI*0.2,Math.PI*0.8); ctx.stroke();
+  // Glove shine
   ctx.fillStyle = 'rgba(255,255,255,0.38)';
   ctx.beginPath(); ctx.ellipse(pGx+6,pGy-7,8,6,-0.3,0,Math.PI*2); ctx.fill();
 
-  ctx.restore(); // end torso twist
-
   // ══════════════════════════════════
-  //  SPECIAL AURAS
+  // SPECIAL AURAS
   // ══════════════════════════════════
   if (isSuper || isDash) {
     ctx.save(); ctx.globalAlpha = 0.7;
@@ -970,18 +1017,38 @@ function drawRingBack(){
   const W=CANVAS_W, H=CANVAS_H;
   const t=Date.now();
 
-  const BLx=142, BLy=158;  
-  const BRx=638, BRy=158;  
-  const FRx=W+8, FRy=FLOORY+80;  
-  const FLx=-8,  FLy=FLOORY+80;  
+  // 3D Perspective coords (Wide Angle)
+  const BLx = 60, BLy = 210;
+  const BRx = 720, BRy = 210;
+  const FLx = -50,  FLy = 550;
+  const FRx = 830,  FRy = 550;
 
-  // Arena Background Sky (Dark Blue)
-  const sky=ctx.createLinearGradient(0,0,0,155);
-  sky.addColorStop(0,'#050811');
-  sky.addColorStop(1,'#0a1122');
-  ctx.fillStyle=sky; ctx.fillRect(0,0,W,155);
+  // ── ARENA BACKGROUND (DARK GRADIENT) ──
+  const sky=ctx.createLinearGradient(0,0,0,210);
+  sky.addColorStop(0,'#110505');
+  sky.addColorStop(0.6,'#220a0a');
+  sky.addColorStop(1,'#331111');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,210);
 
-  // Crowd Silhouette
+  // ── SPOTLIGHT BEAMS ──
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  const beamColors = ['rgba(255,255,255,0.18)', 'rgba(255,240,220,0.12)'];
+  const sources = [W*0.15, W*0.35, W*0.65, W*0.85];
+  sources.forEach((sx, i) => {
+    const targetX = W/2 + (sx - W/2) * 1.5;
+    const beamG = ctx.createLinearGradient(sx, 0, targetX, 250);
+    beamG.addColorStop(0, beamColors[i%2]);
+    beamG.addColorStop(1, 'transparent');
+    ctx.fillStyle = beamG;
+    ctx.beginPath();
+    ctx.moveTo(sx-15, -10); ctx.lineTo(sx+15, -10);
+    ctx.lineTo(targetX + 180, 450); ctx.lineTo(targetX - 180, 450);
+    ctx.closePath(); ctx.fill();
+  });
+  ctx.restore();
+
+  // ── CROWD SILHOUETTE (WARM TONES) ──
   function drawSilhouette(x,y,scale,col){
     ctx.fillStyle=col; ctx.save(); ctx.translate(x,y); ctx.scale(scale,scale);
     ctx.beginPath(); ctx.arc(0,-18,7,0,Math.PI*2); ctx.fill();
@@ -990,187 +1057,114 @@ function drawRingBack(){
     ctx.restore();
   }
   
-  // Row 1 (Far back)
-  const row1cols=['#0b1021','#090d1f','#0c1224'];
-  for(let i=0;i<56;i++){
-    const hx=6+i*(W-12)/55+Math.sin(i*2.1)*3, sc=0.6;
-    drawSilhouette(hx, 60+Math.sin(i*1.8)*3, sc, row1cols[i%row1cols.length]);
-  }
-  // Row 2
-  const row2cols=['#10162e','#0d1226','#121832','#0f142a'];
-  for(let i=0;i<40;i++){
-    const hx=10+i*(W-20)/39+Math.sin(i*3.4)*4, sc=0.8;
-    drawSilhouette(hx, 90+Math.sin(i*2.1)*4, sc, row2cols[i%row2cols.length]);
-  }
-  // Row 3
-  const row3cols=['#161c3b','#131932','#171e3d','#141a38'];
-  for(let i=0;i<30;i++){
-    const hx=15+i*(W-30)/29+Math.sin(i*1.4)*6, sc=1.05;
-    drawSilhouette(hx, 130+Math.sin(i*1.5)*5, sc, row3cols[i%row3cols.length]);
-  }
-  // Row 4 (Closest front)
-  const row4cols=['#1c224a','#181d42','#1e244f','#1a2046'];
-  for(let i=0;i<22;i++){
-    const hx=25+i*(W-50)/21+Math.sin(i*2.7)*7, sc=1.35;
-    drawSilhouette(hx, 175+Math.sin(i*2.3)*6, sc, row4cols[i%row4cols.length]);
-  }
+  const crowds = [
+    {y: 90, sc: 0.65, cols: ['#2a0a0a','#250808','#2c0c0c'], count: 52},
+    {y: 125, sc: 0.85, cols: ['#3a1010','#350e0e','#3e1212'], count: 42},
+    {y: 165, sc: 1.1,  cols: ['#4a1515','#451212','#4e1818'], count: 32},
+    {y: 200, sc: 1.4,  cols: ['#5a1a1a','#551616','#5e1e1e'], count: 24}
+  ];
+  crowds.forEach(row => {
+    for(let i=0; i<row.count; i++){
+      const hx = 10 + i * (W-20)/(row.count-1) + Math.sin(i*2.3+row.y)*5;
+      drawSilhouette(hx, row.y + Math.sin(i*1.8)*4, row.sc, row.cols[i % row.cols.length]);
+    }
+  });
 
   // Camera Flash dots
-  for(let i=0;i<8;i++){
-    const fx=(Math.sin(i*137.5+t*0.0004)*0.5+0.5)*W, fy=(Math.sin(i*97.3+t*0.0003)*0.5+0.5)*130+10;
-    const fa=Math.max(0,Math.sin(t*0.003+i*2.1));
-    if(fa>0.85){
-      ctx.fillStyle=`rgba(255,255,255,${(fa-0.85)*4})`;
-      ctx.beginPath(); ctx.arc(fx,fy,2.5,0,Math.PI*2); ctx.fill();
+  for(let i=0;i<10;i++){
+    const fx=(Math.sin(i*137.5+t*0.0004)*0.5+0.5)*W, fy=(Math.sin(i*97.3+t*0.0003)*0.5+0.5)*150+20;
+    const fa=Math.max(0,Math.sin(t*0.004+i*2.1));
+    if(fa>0.88){
+      ctx.fillStyle=`rgba(255,255,255,${(fa-0.88)*6})`;
+      ctx.beginPath(); ctx.arc(fx,fy,Math.random()*3+1,0,Math.PI*2); ctx.fill();
     }
   }
 
-  // ── RING CANVAS FLOOR ──
+  // ── RING CANVAS FLOOR (TAN/SAND) ──
   const floorGrad=ctx.createLinearGradient(0, BLy, 0, FLy);
-  floorGrad.addColorStop(0,'#ecece5');
-  floorGrad.addColorStop(1,'#dcdcd4');
+  floorGrad.addColorStop(0,'#d49d79'); // Warmer tan
+  floorGrad.addColorStop(1,'#ebc1a0');
   ctx.fillStyle=floorGrad;
   ctx.beginPath();
   ctx.moveTo(BLx,BLy); ctx.lineTo(BRx,BRy);
   ctx.lineTo(FRx,FRy); ctx.lineTo(FLx,FLy);
   ctx.closePath(); ctx.fill();
 
-  // Floor Perspective Grid
+  // ── CENTER RING LOGO ("BOXING") ──
   ctx.save();
-  ctx.strokeStyle='rgba(180,180,175,0.4)'; 
-  ctx.lineWidth=1;
-  // Horizontal lines (closer towards back)
-  for(let i=1;i<=12;i++){
-    const pct = Math.pow(i/13, 1.6);
-    const yf = BLy + pct*(FLy-BLy);
-    const lx = BLx + pct*(FLx-BLx);
-    const rx = BRx + pct*(FRx-BRx);
-    ctx.beginPath(); ctx.moveTo(lx,yf); ctx.lineTo(rx,yf); ctx.stroke();
-  }
-  // Vertical converging lines
-  for(let i=1;i<=8;i++){
-    const pct = i/9;
-    const bx = BLx + pct*(BRx-BLx);
-    const fx = FLx + pct*(FRx-FLx);
-    ctx.beginPath(); ctx.moveTo(bx,BLy); ctx.lineTo(fx,FLy); ctx.stroke();
-  }
+  const logoX=W/2, logoY=340;
+  ctx.globalAlpha=0.75;
+  // Use a slight transform to render the text in perspective
+  ctx.translate(logoX, logoY);
+  ctx.scale(1, 0.45); // flatten it
+  ctx.font='900 120px "Barlow Condensed", sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.strokeStyle='rgba(100,20,5,0.4)'; ctx.lineWidth=6;
+  ctx.strokeText('BOXING', 0, 0);
+  ctx.fillStyle='rgba(180,60,30,0.6)';
+  ctx.fillText('BOXING', 0, 0);
   ctx.restore();
 
-  // ── CENTER RING LOGO ──
-  ctx.save();
-  const logoX=W/2, logoY=280;
-  ctx.globalAlpha=0.6;
-  const blobG=ctx.createRadialGradient(logoX,logoY+4,4,logoX,logoY+4,88);
-  blobG.addColorStop(0,'#4a2810'); blobG.addColorStop(1,'rgba(30,15,5,0)');
-  ctx.fillStyle=blobG;
-  ctx.beginPath(); ctx.ellipse(logoX,logoY+10,82,26,0,0,Math.PI*2); ctx.fill();
-  ctx.globalAlpha=1;
+  // ── SIDE SOLID APRON WALLS ──
+  ctx.fillStyle = '#6a0a0a';
+  ctx.beginPath(); ctx.moveTo(BLx, BLy); ctx.lineTo(FLx, FLy); ctx.lineTo(FLx, FLy+60); ctx.lineTo(BLx, BLy+20); ctx.closePath(); ctx.fill();
+
+  ctx.fillStyle = '#101a5a';
+  ctx.beginPath(); ctx.moveTo(BRx, BRy); ctx.lineTo(FRx, FRy); ctx.lineTo(FRx, FRy+60); ctx.lineTo(BRx, BRy+20); ctx.closePath(); ctx.fill();
+
+  // ── BACK POSTS ──
+  const backPostH = 80;
+  drawRingPost(BLx, BLy, backPostH, '#1133cc', 0.85); // Back left blue
+  drawRingPost(BRx, BRy, backPostH, '#1133cc', 0.85); // Back right blue
+
+  // ── ROPES (BACK AND SIDES) ──
+  const rColors=['#dd1111','#f5f5f5','#1144dd'];
+  const bYOffs = [-75, -55, -35];
+  const fYOffs = [-150, -110, -70]; // Front rope attachments at posts
   
-  ctx.font='bold 28px "Bebas Neue","Black Han Sans",sans-serif';
-  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-  const sgr=ctx.createLinearGradient(logoX-80,logoY-30,logoX+80,logoY);
-  sgr.addColorStop(0,'#ffaa22'); sgr.addColorStop(0.5,'#ffcc44'); sgr.addColorStop(1,'#ff8800');
-  ctx.strokeStyle='#3a1f0a'; ctx.lineWidth=5; ctx.lineJoin='round';
-  ctx.strokeText('SUPER',logoX,logoY-8); ctx.fillStyle=sgr; ctx.fillText('SUPER',logoX,logoY-8);
-  
-  ctx.font='bold 34px "Bebas Neue","Black Han Sans",sans-serif';
-  const pgr=ctx.createLinearGradient(logoX-80,logoY+5,logoX+80,logoY+30);
-  pgr.addColorStop(0,'#ffb422'); pgr.addColorStop(0.5,'#ffe844'); pgr.addColorStop(1,'#ff9900');
-  ctx.strokeStyle='#3a1f0a'; ctx.lineWidth=6;
-  ctx.strokeText('PUNCH',logoX,logoY+28); ctx.fillStyle=pgr; ctx.fillText('PUNCH',logoX,logoY+28);
-  ctx.restore();
-
-  // ── SIDE SOLID ROPES (RED LEFT, BLUE RIGHT) ──
-  const backPostH=85, frontPostH=120;
-  const ropeOffsets=[10, 34, 58];
-  const backRopeYs=ropeOffsets.map(o=> BLy-backPostH*0.85+o*1.1);
-  const frontRopeYs=ropeOffsets.map(o=> FLy-frontPostH+o*1.4);
-  const FLinner={x:16, y:FLy}, FRinner={x:W-16, y:FLy};
-
-  // Left solid red block
-  ctx.save();
-  ctx.fillStyle = '#b31515';
-  ctx.beginPath();
-  ctx.moveTo(BLx, backRopeYs[0]-6);
-  ctx.lineTo(FLx+22, frontRopeYs[0]-7);
-  ctx.lineTo(FLx+14, frontRopeYs[2]+8);
-  ctx.lineTo(BLx-4, backRopeYs[2]+6);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle='#660000'; ctx.lineWidth=2.5; ctx.stroke();
-  ctx.restore();
-
-  // Right solid blue block
-  ctx.save();
-  ctx.fillStyle = '#1533b3';
-  ctx.beginPath();
-  ctx.moveTo(BRx, backRopeYs[0]-6);
-  ctx.lineTo(FRx-22, frontRopeYs[0]-7);
-  ctx.lineTo(FRx-14, frontRopeYs[2]+8);
-  ctx.lineTo(BRx+4, backRopeYs[2]+6);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle='#000066'; ctx.lineWidth=2.5; ctx.stroke();
-  ctx.restore();
-
-  // Back Posts & Back Ropes (Drawn after floor but before side blocks? Side ropes actually overlap back ropes near posts)
-  drawRingPost(BLx, BLy, backPostH, '#cc0000', 0.82);
-  drawRingPost(BRx, BRy, backPostH, '#0022cc', 0.82);
-
-  const rColors=['#0044ee','#f0f0f0','#dd0011'], rThick=[5.5, 5.5, 5.5];
-  rColors.forEach((rc,ri)=>{
-    const th=rThick[ri], bY=backRopeYs[ri];
-    ctx.save(); ctx.shadowBlur=0;
-    ctx.strokeStyle='rgba(0,0,0,0.5)'; ctx.lineWidth=th+2.5; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(BLx+6,bY+2);
-    ctx.bezierCurveTo(BLx+(BRx-BLx)*0.35,bY+6, BLx+(BRx-BLx)*0.65,bY+6, BRx-6,bY+2); ctx.stroke();
-    const brg=ctx.createLinearGradient(0,bY-th,0,bY+th);
-    brg.addColorStop(0,shadeColor(rc,40)); brg.addColorStop(0.5,rc); brg.addColorStop(1,shadeColor(rc,-40));
-    ctx.strokeStyle=brg; ctx.lineWidth=th; 
-    ctx.beginPath(); ctx.moveTo(BLx+6,bY);
-    ctx.bezierCurveTo(BLx+(BRx-BLx)*0.35,bY+5, BLx+(BRx-BLx)*0.65,bY+5, BRx-6,bY); ctx.stroke();
-    ctx.restore();
+  rColors.forEach((col, i) => {
+    let by1 = BLy + bYOffs[i], by2 = BRy + bYOffs[i];
+    // Back ropes
+    drawRopeSag(BLx, by1, BRx, by2, col, 5, 2);
+    // Side ropes (Left)
+    let fy1 = FLy + fYOffs[i];
+    drawRopeSag(BLx, by1, FLx, fy1, col, 6, 4);
+    // Side ropes (Right)
+    let fy2 = FRy + fYOffs[i];
+    drawRopeSag(BRx, by2, FRx, fy2, col, 6, -4);
   });
 }
 
 function drawRingFront(){
-  const W=CANVAS_W, H=CANVAS_H;
-  const FLy=FLOORY+80;
-  const FLx=-8, FRx=W+8, BLx=142, BRx=638, BLy=158, BRy=158;
-  const frontPostH=120;
-  
+  // Only draws the front ropes and front posts accurately in perspective foreground space
+  const FLx = -50,  FLy = 550;
+  const FRx = 830,  FRy = 550;
+
   // Front Posts
-  drawRingPost(12, FLy, frontPostH, '#cc0000', 1.0);
-  drawRingPost(W-12, FLy, frontPostH, '#0022cc', 1.0);
+  const frontPostH = 160;
+  drawRingPost(FLx, FLy, frontPostH, '#1133cc', 1.4);
+  drawRingPost(FRx, FRy, frontPostH, '#1133cc', 1.4);
 
-  const ropeOffsets=[10, 34, 58], rColors=['#0044ee','#f0f0f0','#dd0011'], rThick=[5.5, 5.5, 5.5];
-  const frontRopeYs=ropeOffsets.map(o=> FLy-frontPostH+o*1.4);
-
-  // Front Ropes
-  rColors.forEach((rc,ri)=>{
-    const th=rThick[ri];
-    const y=frontRopeYs[ri];
-    ctx.save();
-    ctx.strokeStyle='rgba(0,0,0,0.5)'; ctx.lineWidth=th+2.5; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(-16,y+2); ctx.lineTo(W+16,y+2); ctx.stroke();
-    
-    const rg=ctx.createLinearGradient(0,y-th,0,y+th);
-    rg.addColorStop(0, shadeColor(rc,40)); rg.addColorStop(0.5, rc); rg.addColorStop(1, shadeColor(rc,-30));
-    ctx.strokeStyle=rg; ctx.lineWidth=th;
-    ctx.beginPath(); ctx.moveTo(-16,y); ctx.lineTo(W+16,y); ctx.stroke();
-    ctx.restore();
+  // Front ropes
+  const rColors=['#dd1111','#f5f5f5','#1144dd'];
+  const fYOffs = [-150, -110, -70];
+  
+  rColors.forEach((col, i) => {
+    let fy1 = FLy + fYOffs[i];
+    let fy2 = FRy + fYOffs[i];
+    drawRopeSag(FLx, fy1, FRx, fy2, col, 8, 2); 
   });
 
-  // Apron Front Faces
-  ctx.fillStyle='#9e0b0b'; // Dark Red
-  ctx.beginPath(); ctx.moveTo(-16,FLy); ctx.lineTo(-16,FLy+32); ctx.lineTo(142,158+15); ctx.lineTo(142,158); ctx.closePath(); ctx.fill();
+  // Front apron face
+  ctx.fillStyle='#4e0505'; 
+  ctx.beginPath(); 
+  ctx.moveTo(FLx, FLy); ctx.lineTo(FRx, FRy); 
+  ctx.lineTo(FRx, FRy+60); ctx.lineTo(FLx, FLy+60); 
+  ctx.closePath(); ctx.fill();
   
-  ctx.fillStyle='#0f209e'; // Dark Blue
-  ctx.beginPath(); ctx.moveTo(W+16,FLy); ctx.lineTo(W+16,FLy+32); ctx.lineTo(638,158+15); ctx.lineTo(638,158); ctx.closePath(); ctx.fill();
-  
-  // Front edge highlights
-  ctx.strokeStyle='rgba(255,255,255,0.8)'; ctx.lineWidth=3;
-  ctx.beginPath(); ctx.moveTo(-16,FLy+1); ctx.lineTo(W+16,FLy+1); ctx.stroke();
+  // Front edge highlight
+  ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(FLx,FLy+1); ctx.lineTo(FRx,FLy+1); ctx.stroke();
 }
 
 function drawRingPost(x, y, h, padColor, scale){
@@ -1189,18 +1183,25 @@ function drawRingPost(x, y, h, padColor, scale){
   ctx.restore();
 }
 
-function drawRope3D(x1,y1,x2,y2,col,thickness){
-  ctx.strokeStyle='rgba(0,0,0,0.45)'; ctx.lineWidth=thickness+3; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(x1,y1+3); ctx.lineTo(x2,y2+3); ctx.stroke();
-  const rg=ctx.createLinearGradient(x1,y1-thickness,x1,y1+thickness);
-  rg.addColorStop(0, shadeColor(col,50)); rg.addColorStop(0.4, col); rg.addColorStop(1, shadeColor(col,-40));
-  ctx.strokeStyle=rg; ctx.lineWidth=thickness; ctx.shadowColor=col; ctx.shadowBlur=3;
-  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); ctx.shadowBlur=0;
-  ctx.strokeStyle='rgba(255,255,255,0.28)'; ctx.lineWidth=thickness*0.35;
-  ctx.beginPath(); ctx.moveTo(x1,y1-thickness*0.15); ctx.lineTo(x2,y2-thickness*0.15); ctx.stroke();
-  [0,1].forEach(end=>{
-    ctx.fillStyle='#bbb'; ctx.beginPath(); ctx.ellipse(end===0?x1:x2,end===0?y1:y2,thickness*0.7,thickness*0.45,0,0,Math.PI*2); ctx.fill();
-  });
+function drawRopeSag(x1, y1, x2, y2, col, thick, sag) {
+  ctx.save();
+  // Shadow
+  ctx.strokeStyle='rgba(0,0,0,0.45)'; ctx.lineWidth=thick+2; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x1, y1+2); 
+  ctx.quadraticCurveTo((x1+x2)/2, (y1+y2)/2 + sag, x2, y2+2); ctx.stroke();
+  
+  // Main rope
+  const rg=ctx.createLinearGradient(Math.min(x1,x2),Math.min(y1,y2)-thick, Math.max(x1,x2),Math.max(y1,y2)+thick);
+  rg.addColorStop(0, shadeColor(col,30)); rg.addColorStop(0.5, col); rg.addColorStop(1, shadeColor(col,-30));
+  ctx.strokeStyle = rg; ctx.lineWidth = thick;
+  ctx.beginPath(); ctx.moveTo(x1, y1); 
+  ctx.quadraticCurveTo((x1+x2)/2, (y1+y2)/2 + sag, x2, y2); ctx.stroke();
+  
+  // Highlight
+  ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=Math.max(1, thick*0.3);
+  ctx.beginPath(); ctx.moveTo(x1, y1-thick*0.25); 
+  ctx.quadraticCurveTo((x1+x2)/2, (y1+y2)/2 + sag - thick*0.25, x2, y2-thick*0.25); ctx.stroke();
+  ctx.restore();
 }
 
 
@@ -1250,6 +1251,9 @@ const ROSTER = [
   { id:'titan',    name:'TITAN',       archetype:'Tank',
     skin:'#e0a060', skinD:'#c07840', hair:'#0a0808', trunkC:'#550000', gloveC:'#881100',
     weight:5, height:5, flying:1, speed:1, recov:5, def:5, beard:true, sh:200 },
+  { id:'thereal',  name:'THE REAL',    archetype:'Boxing Purist',
+    skin:'#9e6440', skinD:'#7a492b', hair:'#111111', trunkC:'#eeeeee', gloveC:'#111111',
+    weight:4, height:4, flying:1, speed:4, recov:4, def:5, beard:false, sh:188 },
 ];
 
 
@@ -1374,11 +1378,19 @@ function drawHeadOnly(canvas, r) {
   // Try to draw the real sprite image
   const img = SPRITES[r.id];
   if(img && img.complete && img.naturalWidth > 0) {
+    const isSheet = img.naturalWidth > img.naturalHeight * 1.5;
+    let sW = img.naturalWidth, sH = img.naturalHeight;
+    let sx = 0;
+    if (isSheet) {
+      sW = Math.round(img.naturalWidth / 6);
+      sx = sW; // Use idle pose (frame index 1)
+    }
+
     // Draw full body sprite, centered and fitted
-    const aspect = img.naturalWidth / img.naturalHeight;
+    const aspect = sW / sH;
     const drawH = H * 0.98;
     const drawW = aspect * drawH;
-    c.drawImage(img, W/2 - drawW/2, H - drawH, drawW, drawH);
+    c.drawImage(img, sx, 0, sW, sH, W/2 - drawW/2, H - drawH, drawW, drawH);
     return;
   }
 
@@ -1472,37 +1484,85 @@ function drawCrowdBg() {
   const crowdImg = new Image();
   crowdImg.onload = () => {
     c.drawImage(crowdImg, 0, 0, W, H);
-    // Overlay a dark tint to unify with the UI
+    // Overlay a warm dark maroon tint
     const tint = c.createLinearGradient(0,0,0,H);
-    tint.addColorStop(0,'rgba(2,8,22,0.45)');
-    tint.addColorStop(0.6,'rgba(2,8,22,0.3)');
-    tint.addColorStop(1,'rgba(2,8,22,0.7)');
+    tint.addColorStop(0,'rgba(30,10,10,0.55)');
+    tint.addColorStop(0.6,'rgba(25,8,8,0.4)');
+    tint.addColorStop(1,'rgba(20,5,5,0.75)');
     c.fillStyle=tint; c.fillRect(0,0,W,H);
   };
   crowdImg.onerror = () => {
-    // Fallback: painted crowd
-    c.fillStyle='#030c1c'; c.fillRect(0,0,W,H);
+    // Fallback: Warm painted crowd
+    c.fillStyle='#1a0505'; c.fillRect(0,0,W,H);
     for(let row=0;row<8;row++){
       const rowY=H*0.04+row*(H*0.5/8), rowH=H*0.055+row*2;
-      const lum=12+row*3;
-      c.fillStyle=`rgba(${lum},${lum+12},${lum+35},0.8)`;
+      const redCh=25+row*5;
+      c.fillStyle=`rgba(${redCh},${redCh-5},${redCh-10},0.85)`;
       c.fillRect(0,rowY,W,rowH);
       const cnt=Math.floor(W/26)+2;
       for(let i=0;i<cnt;i++){
         const hx=(i/(cnt-1))*W+(Math.random()-0.5)*10;
         const hy=rowY+rowH*0.2+(Math.random()-0.5)*3;
         const hr=4+Math.random()*5;
-        c.fillStyle=`rgba(${lum+5},${lum+18},${lum+45},0.9)`;
+        c.fillStyle=`rgba(${redCh+15},${redCh+5},${redCh-5},0.9)`;
         c.beginPath(); c.ellipse(hx,hy,hr*0.7,hr,0,0,Math.PI*2); c.fill();
         c.beginPath(); c.ellipse(hx,hy+hr*1.3,hr*0.85,hr*0.65,0,0,Math.PI*2); c.fill();
-        if(Math.random()<0.05){ c.fillStyle='rgba(200,40,40,0.7)'; c.fillRect(hx-7,hy-hr*2.4,14,9); }
+        if(Math.random()<0.06){ c.fillStyle='rgba(255,100,50,0.6)'; c.fillRect(hx-5,hy-hr*2,10,10); }
       }
     }
     const fg=c.createLinearGradient(0,H*0.55,0,H);
-    fg.addColorStop(0,'transparent'); fg.addColorStop(1,'rgba(0,8,30,0.85)');
+    fg.addColorStop(0,'transparent'); fg.addColorStop(1,'rgba(35,10,10,0.85)');
     c.fillStyle=fg; c.fillRect(0,H*0.55,W,H*0.45);
   };
   crowdImg.src = 'img/crowd_bg.png';
+}
+
+function drawModeBg() {
+  const bgCanvas = document.getElementById('mode-bg');
+  if(!bgCanvas) return;
+  const ms = document.getElementById('mode-selection');
+  bgCanvas.width = ms.offsetWidth || 780;
+  bgCanvas.height = ms.offsetHeight || 450;
+  const c = bgCanvas.getContext('2d');
+  const W=bgCanvas.width, H=bgCanvas.height;
+
+  function draw() {
+    if (ms.style.display === 'none') return;
+    
+    // Warm burnt copper background
+    const bg = c.createRadialGradient(W/2, H/2, 50, W/2, H/2, W*0.7);
+    bg.addColorStop(0, '#2a0a0a');
+    bg.addColorStop(1, '#0e0505');
+    c.fillStyle = bg;
+    c.fillRect(0,0,W,H);
+    
+    // Abstract grid in copper
+    c.strokeStyle = 'rgba(255,160,100,0.06)';
+    c.lineWidth = 1;
+    for(let i=0; i<W; i+=40) {
+      c.beginPath(); c.moveTo(i,0); c.lineTo(i,H); c.stroke();
+    }
+    for(let i=0; i<H; i+=40) {
+      c.beginPath(); c.moveTo(0,i); c.lineTo(W,i); c.stroke();
+    }
+    
+    // Floating glows
+    const time = Date.now() / 2000;
+    for(let i=0; i<3; i++) {
+      const gx = W/2 + Math.cos(time + i*2) * W * 0.3;
+      const gy = H/2 + Math.sin(time*0.8 + i*2) * H * 0.2;
+      const gr = 180 + Math.sin(time) * 40;
+      const g = c.createRadialGradient(gx, gy, 0, gx, gy, gr);
+      const gCol = i === 0 ? '50,15,5' : i === 1 ? '70,25,10' : '40,10,10';
+      g.addColorStop(0, `rgba(${gCol}, 0.35)`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = g;
+      c.fillRect(0,0,W,H);
+    }
+    
+    requestAnimationFrame(draw);
+  }
+  draw();
 }
 
 function drawPreviewStage() {
@@ -1515,131 +1575,103 @@ function drawPreviewStage() {
     c.clearRect(0,0,W,H);
 
     const cx = W/2;
-    // ── Isometric ring geometry ──
-    const ringFrontY = H * 0.80;   // front edge of ring floor
-    const rHalfW    = W * 0.46;    // half-width at front
-    const rDepth    = H * 0.16;    // depth (front→back foreshortening)
-    const sideW     = rHalfW * 0.18; // side apron visual width
-    const apronH    = H * 0.12;    // front apron drop height
-    const postH     = H * 0.30;    // rope post height
+    // ── 3D Wide Angle Geometry for Preview ──
+    const BLx = cx - W*0.35, BLy = H * 0.45;
+    const BRx = cx + W*0.35, BRy = H * 0.45;
+    const FLx = cx - W*0.48, FLy = H * 0.88;
+    const FRx = cx + W*0.48, FRy = H * 0.88;
+    const ringFrontY = FLy;
 
-    // Ring corner points
-    const FL = {x: cx - rHalfW,        y: ringFrontY};
-    const FR = {x: cx + rHalfW,        y: ringFrontY};
-    const BL = {x: cx - rHalfW*0.62,   y: ringFrontY - rDepth};
-    const BR = {x: cx + rHalfW*0.62,   y: ringFrontY - rDepth};
+    // Floor
+    const floorG = c.createLinearGradient(0, BLy, 0, FLy);
+    floorG.addColorStop(0,'#d49d79'); floorG.addColorStop(1,'#ebc1a0');
+    c.fillStyle = floorG;
+    c.beginPath(); c.moveTo(BLx, BLy); c.lineTo(BRx, BRy); c.lineTo(FRx, FRy); c.lineTo(FLx, FLy); c.closePath(); c.fill();
 
-    // ── Ring canvas floor (white) ──
-    const floorG = c.createLinearGradient(0, BL.y, 0, FL.y);
-    floorG.addColorStop(0,'#d8d4c8'); floorG.addColorStop(1,'#f0ece0');
-    c.fillStyle=floorG;
-    c.beginPath(); c.moveTo(BL.x,BL.y); c.lineTo(BR.x,BR.y); c.lineTo(FR.x,FR.y); c.lineTo(FL.x,FL.y); c.closePath(); c.fill();
-    // Floor highlight bloom
-    const bloom=c.createRadialGradient(cx,BL.y+rDepth*0.35,4,cx,BL.y+rDepth*0.35,rHalfW*0.75);
-    bloom.addColorStop(0,'rgba(255,255,255,0.45)'); bloom.addColorStop(1,'transparent');
-    c.fillStyle=bloom;
-    c.beginPath(); c.moveTo(BL.x,BL.y); c.lineTo(BR.x,BR.y); c.lineTo(FR.x,FR.y); c.lineTo(FL.x,FL.y); c.closePath(); c.fill();
-    // Floor grid lines
-    c.strokeStyle='rgba(160,155,138,0.35)'; c.lineWidth=1;
-    for(let i=1;i<5;i++){
-      const t=i/5;
-      const ly=BL.y+t*(FL.y-BL.y), lx1=BL.x+(FL.x-BL.x)*t, rx1=BR.x+(FR.x-BR.x)*t;
-      c.beginPath(); c.moveTo(lx1,ly); c.lineTo(rx1,ly); c.stroke();
+    // Logo
+    c.save();
+    c.globalAlpha = 0.6;
+    c.translate(cx, BLy + (FLy-BLy)*0.45);
+    c.scale(1, 0.45);
+    c.font = '900 '+Math.round(W*0.08)+'px "Barlow Condensed", sans-serif'; c.textAlign = 'center'; c.textBaseline='middle';
+    c.strokeStyle = 'rgba(100,20,5,0.4)'; c.lineWidth = 4; c.strokeText('BOXING', 0, 0);
+    c.fillStyle = 'rgba(180,60,30,0.6)'; c.fillText('BOXING', 0, 0);
+    c.restore();
+
+    // Side apron walls
+    c.fillStyle = '#6a0a0a';
+    c.beginPath(); c.moveTo(BLx, BLy); c.lineTo(FLx, FLy); c.lineTo(FLx, FLy+W*0.04); c.lineTo(BLx, BLy+W*0.015); c.closePath(); c.fill();
+    c.fillStyle = '#101a5a';
+    c.beginPath(); c.moveTo(BRx, BRy); c.lineTo(FRx, FRy); c.lineTo(FRx, FRy+W*0.04); c.lineTo(BRx, BRy+W*0.015); c.closePath(); c.fill();
+
+    // Local Post Helper
+    function pPost(x, y, h, col, scale) {
+      c.save(); c.translate(x,y); c.scale(scale,scale);
+      const pw=7, ph=h/scale;
+      c.fillStyle='#888'; c.fillRect(-pw,-ph,pw*2,ph);
+      c.fillStyle=col; c.beginPath(); c.roundRect(-pw*1.4,-ph, pw*2.8, Math.min(45,ph*0.5), 3); c.fill();
+      c.fillStyle='rgba(255,255,255,0.2)'; c.fillRect(-pw*1.4,-ph, pw*2.8, 4);
+      c.restore();
     }
-    c.beginPath(); c.moveTo(cx,BL.y); c.lineTo(cx,FL.y); c.stroke();
+    const backPostH = H*0.22, frontPostH = H*0.45;
+    pPost(BLx, BLy, backPostH, '#1133cc', 0.8);
+    pPost(BRx, BRy, backPostH, '#1133cc', 0.8);
+    
+    // Front Posts
+    pPost(FLx, FLy, frontPostH, '#1133cc', 1.3);
+    pPost(FRx, FRy, frontPostH, '#1133cc', 1.3);
 
-    // ── Left side apron (dark red) ──
-    const leftAG=c.createLinearGradient(FL.x,ringFrontY,BL.x,BL.y);
-    leftAG.addColorStop(0,'#8b1a00'); leftAG.addColorStop(1,'#5a1000');
-    c.fillStyle=leftAG;
-    c.beginPath(); c.moveTo(BL.x,BL.y); c.lineTo(FL.x,FL.y); c.lineTo(FL.x-sideW,FL.y+apronH*0.65); c.lineTo(BL.x-sideW*0.55,BL.y+apronH*0.4); c.closePath(); c.fill();
-    c.fillStyle='rgba(255,100,50,0.14)';
-    c.beginPath(); c.moveTo(BL.x,BL.y); c.lineTo(FL.x,FL.y); c.lineTo(FL.x,FL.y+4); c.lineTo(BL.x,BL.y+4); c.closePath(); c.fill();
+    function pRope(x1, y1, x2, y2, col, thick) {
+      c.strokeStyle='rgba(0,0,0,0.4)'; c.lineWidth=thick+2; c.lineCap='round';
+      c.beginPath(); c.moveTo(x1, y1+2); c.lineTo(x2, y2+2); c.stroke();
+      c.strokeStyle=col; c.lineWidth=thick; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+    }
 
-    // ── Right side apron (dark blue) ──
-    const rightAG=c.createLinearGradient(FR.x,ringFrontY,BR.x,BR.y);
-    rightAG.addColorStop(0,'#001a8b'); rightAG.addColorStop(1,'#00105a');
-    c.fillStyle=rightAG;
-    c.beginPath(); c.moveTo(BR.x,BR.y); c.lineTo(FR.x,FR.y); c.lineTo(FR.x+sideW,FR.y+apronH*0.65); c.lineTo(BR.x+sideW*0.55,BR.y+apronH*0.4); c.closePath(); c.fill();
-
-    // ── Front apron (orange) ──
-    const frontAG=c.createLinearGradient(0,ringFrontY,0,ringFrontY+apronH);
-    frontAG.addColorStop(0,'#f08000'); frontAG.addColorStop(1,'#a04800');
-    c.fillStyle=frontAG;
-    c.beginPath(); c.moveTo(FL.x-sideW,FL.y+apronH*0.65); c.lineTo(FR.x+sideW,FR.y+apronH*0.65); c.lineTo(FR.x+sideW,FR.y+apronH); c.lineTo(FL.x-sideW,FL.y+apronH); c.closePath(); c.fill();
-    // Front apron top highlight
-    c.fillStyle='rgba(255,200,60,0.35)';
-    c.beginPath(); c.moveTo(FL.x-sideW,FL.y+apronH*0.65); c.lineTo(FR.x+sideW,FR.y+apronH*0.65); c.lineTo(FR.x+sideW,FL.y+apronH*0.65+5); c.lineTo(FL.x-sideW,FL.y+apronH*0.65+5); c.closePath(); c.fill();
-    c.fillStyle='rgba(255,200,60,0.2)';
-    c.fillRect(FL.x-sideW, FL.y+apronH*0.65+5, (rHalfW+sideW)*2, 9);
-    // Front ring edge highlight
-    c.strokeStyle='rgba(255,255,255,0.4)'; c.lineWidth=2;
-    c.beginPath(); c.moveTo(FL.x,FL.y); c.lineTo(FR.x,FR.y); c.stroke();
-
-    // ── Back ropes & left/right ropes ──
-    const ropeColors=['#cc1111','#f0f0f0','#1133cc'];
-    const ropeOffPct=[0.22,0.52,0.78]; // fraction down from top of post
-    ropeOffPct.forEach((pct,ri)=>{
-      const bY=BL.y-postH*(1-pct), fY=FL.y-postH*(1-pct)*0.48;
-      const col=ropeColors[ri]; const th=ri===1?3.5:3;
-      // Back rope
-      c.save(); c.strokeStyle=col; c.lineWidth=th; c.lineCap='round';
-      c.shadowColor=col; c.shadowBlur=4;
-      c.beginPath(); c.moveTo(BL.x,bY); c.bezierCurveTo(BL.x+(BR.x-BL.x)*0.35,bY+5,BL.x+(BR.x-BL.x)*0.65,bY+5,BR.x,bY); c.stroke();
-      // Left side rope
-      c.beginPath(); c.moveTo(BL.x,bY); c.lineTo(FL.x,fY); c.stroke();
-      // Right side rope
-      c.beginPath(); c.moveTo(BR.x,bY); c.lineTo(FR.x,fY); c.stroke();
-      c.restore();
+    const rColors=['#dd1111','#f5f5f5','#1144dd'];
+    const bYOffs = [-backPostH*0.8, -backPostH*0.6, -backPostH*0.4];
+    const fYOffs = [-frontPostH*0.8, -frontPostH*0.6, -frontPostH*0.4];
+    
+    rColors.forEach((col, i) => {
+      let by1 = BLy + bYOffs[i], by2 = BRy + bYOffs[i];
+      pRope(BLx, by1, BRx, by2, col, 3); // Back
+      let fy1 = FLy + fYOffs[i], fy2 = FRy + fYOffs[i];
+      pRope(BLx, by1, FLx, fy1, col, 4); // Left side
+      pRope(BRx, by2, FRx, fy2, col, 4); // Right side
+      pRope(FLx, fy1, FRx, fy2, col, 6); // Front
     });
 
-    // ── Corner posts ──
-    [[BL.x,BL.y,'#cc1111'],[BR.x,BR.y,'#1133cc'],[FL.x,FL.y,'#cc1111'],[FR.x,FR.y,'#1133cc']].forEach(([px,py,padC])=>{
-      const pScale = (py>BL.y+rDepth*0.4)?1.0:0.78;
-      const pPostH = postH*pScale;
-      const pg=c.createLinearGradient(px-5,0,px+5,0);
-      pg.addColorStop(0,'#555'); pg.addColorStop(0.35,'#ccc'); pg.addColorStop(1,'#555');
-      c.fillStyle=pg; c.fillRect(px-4,py-pPostH,8,pPostH);
-      c.fillStyle=padC;
-      c.beginPath(); c.roundRect(px-6,py-pPostH,12,Math.min(28,pPostH*0.36),3); c.fill();
-      c.fillStyle='rgba(255,255,255,0.28)'; c.fillRect(px-6,py-pPostH,12,4);
-      const cap=c.createRadialGradient(px-1,py-pPostH-2,1,px-1,py-pPostH-2,7);
-      cap.addColorStop(0,'#eee'); cap.addColorStop(1,'#666');
-      c.fillStyle=cap; c.beginPath(); c.ellipse(px,py-pPostH,7,3.5,0,0,Math.PI*2); c.fill();
-    });
+    // ── Fighter sprites ──
+    const r1 = ROSTER[selectedP1];
+    const r2 = ROSTER[selectedP2];
 
-    // ── Front ropes (in front of fighter) ──
-    ropeOffPct.forEach((pct,ri)=>{
-      const fY=FL.y-postH*(1-pct)*0.48;
-      const col=ropeColors[ri]; const th=ri===1?3.5:3;
-      c.save(); c.strokeStyle=col; c.lineWidth=th; c.lineCap='round';
-      c.shadowColor=col; c.shadowBlur=4;
-      c.beginPath(); c.moveTo(FL.x,fY); c.lineTo(FR.x,fY); c.stroke();
-      c.restore();
-    });
-
-    // ── Fighter sprite ──
-    const r = ROSTER[window.wsSelectingPlayer===2 ? selectedP2 : selectedP1] || ROSTER[0];
-    const img = SPRITES[r.id];
-    const drawFighter = () => {
+    const drawOneFighter = (r, offset, isFlipped) => {
+      const img = SPRITES[r.id];
       if(img && img.complete && img.naturalWidth>0) {
-        const sprH = H * 0.78;
-        const sprW = img.naturalWidth/img.naturalHeight * sprH;
-        // Fighter stands with feet at the ring front edge (ringFrontY)
-        c.drawImage(img, cx-sprW/2, ringFrontY-sprH*0.90, sprW, sprH);
-      } else if(wsPreviewFighter) {
+        const isSheet = img.naturalWidth > img.naturalHeight * 1.5;
+        let sW = img.naturalWidth, sH = img.naturalHeight;
+        let sx = 0;
+        if (isSheet) {
+          sW = Math.round(img.naturalWidth / 6);
+          sx = sW; // Use idle pose (frame index 1)
+        }
+        
+        const sprH = H * 0.72;
+        const sprW = sW / sH * sprH;
         c.save();
-        c.translate(cx, ringFrontY-2);
-        c.scale(1.5,1.5);
-        const ox=wsPreviewFighter.x; wsPreviewFighter.x=0;
-        drawBoxer(c,wsPreviewFighter);
-        wsPreviewFighter.x=ox;
+        if(isFlipped) {
+          c.translate(cx + offset + sprW/2, 0);
+          c.scale(-1, 1);
+          c.drawImage(img, sx, 0, sW, sH, 0, ringFrontY-sprH*0.85, sprW, sprH);
+        } else {
+          c.drawImage(img, sx, 0, sW, sH, cx + offset - sprW/2, ringFrontY-sprH*0.85, sprW, sprH);
+        }
         c.restore();
       }
     };
-    if(img && !img.complete) { img.addEventListener('load',()=>{ cancelAnimationFrame(wsPreviewTimer); drawPreviewStage(); },{once:true}); }
-    // Draw fighter between back and front rings (depth order)
-    drawFighter();
+    
+    // Draw P1 (left) and P2 (right)
+    drawOneFighter(r1, -W*0.2, false);
+    drawOneFighter(r2,  W*0.2, true);
 
     wsPreviewTimer = requestAnimationFrame(drawPreviewStage);
   }
@@ -1684,37 +1716,40 @@ function buildRoster(){
 }
 
 window.selectChar = function(idx) {
+  if(idx >= ROSTER.length) return; // can't pick locked slot
   if (window.wsSelectingPlayer === 1) {
     selectedP1 = idx;
     if (gameMode === '1p') {
+      // CPU mode: auto-pick opponent and go straight to ready
       selectedP2 = (idx+1)%ROSTER.length;
       window.wsSelectingPlayer = 2;
     } else {
+      // 2P mode: now it's Player 2's turn
       window.wsSelectingPlayer = 2;
     }
   } else {
+    // Player 2 selecting
     selectedP2 = idx;
   }
   window.updateSelUI();
 };
 
 window.updateSelUI = function() {
-  const rIdx = window.wsSelectingPlayer === 1 ? selectedP1 : selectedP2;
+  const isP1Turn = window.wsSelectingPlayer === 1;
+  const rIdx = isP1Turn ? selectedP1 : selectedP2;
   const currR = ROSTER[rIdx];
   
+  // Update grid selection highlights
   const slots = document.querySelectorAll('.ws-head-slot');
   slots.forEach((s,i)=>{
     s.classList.remove('selected','p1-sel','p2-sel');
-    if(i === selectedP1 && i === selectedP2) {
-       s.classList.add('selected', window.wsSelectingPlayer===1?'p1-sel':'p2-sel');
-    }
-    else if(i === selectedP1) s.classList.add('selected','p1-sel');
-    else if(i === selectedP2 && window.wsSelectingPlayer===2) s.classList.add('selected','p2-sel');
+    // Always show P1's locked-in pick with red border
+    if(i === selectedP1 && !isP1Turn) s.classList.add('selected','p1-sel');
+    // Show current selecting player's pick
+    if(isP1Turn && i === selectedP1) s.classList.add('selected','p1-sel');
+    if(!isP1Turn && i === selectedP2) s.classList.add('selected','p2-sel');
   });
 
-  const nameEl = document.getElementById('ws-char-name');
-  if(nameEl) nameEl.textContent = currR.name;
-  
   // Segmented stat bars (10 segments each)
   function setSegs(id, val, color) {
     const el = document.getElementById(id);
@@ -1727,31 +1762,83 @@ window.updateSelUI = function() {
       el.appendChild(seg);
     }
   }
-  setSegs('ws-stat-weight',   currR.weight, 'red');
-  setSegs('ws-stat-height',   currR.height, 'blue');
-  setSegs('ws-stat-flying',   currR.flying, 'red');
-  setSegs('ws-stat-speed',    currR.speed,  'blue');
-  setSegs('ws-stat-recovery', currR.recov,  'red');
-  setSegs('ws-stat-defense',  currR.def,    'blue');
+
+  // Update P1 Side
+  const r1 = ROSTER[selectedP1];
+  const name1 = document.getElementById('ws-p1-name');
+  if(name1) name1.textContent = r1.name;
+  setSegs('ws-p1-stat-weight',   r1.weight, 'red');
+  setSegs('ws-p1-stat-height',   r1.height, 'blue');
+  setSegs('ws-p1-stat-flying',   r1.flying, 'red');
+  setSegs('ws-p1-stat-speed',    r1.speed,  'blue');
+  setSegs('ws-p1-stat-recovery', r1.recov,  'red');
+  setSegs('ws-p1-stat-defense',  r1.def,    'blue');
+
+  // Update P2 Side
+  const r2 = ROSTER[selectedP2];
+  const name2 = document.getElementById('ws-p2-name');
+  if(name2) name2.textContent = r2.name;
+  setSegs('ws-p2-stat-weight',   r2.weight, 'red');
+  setSegs('ws-p2-stat-height',   r2.height, 'blue');
+  setSegs('ws-p2-stat-flying',   r2.flying, 'red');
+  setSegs('ws-p2-stat-speed',    r2.speed,  'blue');
+  setSegs('ws-p2-stat-recovery', r2.recov,  'red');
+  setSegs('ws-p2-stat-defense',  r2.def,    'blue');
+
+  // Manage Turn Visibility & Status Labels
+  const p1Sec = document.getElementById('ws-p1-section');
+  const p2Sec = document.getElementById('ws-p2-section');
+  const p1Stat = document.getElementById('ws-p1-status');
+  const p2Stat = document.getElementById('ws-p2-status');
+
+  if (p1Sec && p2Sec && p1Stat && p2Stat) {
+    if (window.wsSelectingPlayer === 1) {
+      p1Sec.classList.remove('inactive','locked');
+      p2Sec.classList.add('inactive');
+      p2Sec.classList.remove('locked');
+      p1Stat.textContent = 'CHOOSING';  p1Stat.className = 'ws-player-status choosing';
+      p2Stat.textContent = 'WAITING';   p2Stat.className = 'ws-player-status';
+    } else {
+      // Player 2 is choosing
+      p1Sec.classList.add('locked');
+      p1Sec.classList.remove('inactive');
+      p2Sec.classList.remove('inactive');
+      p1Stat.textContent = 'LOCKED';    p1Stat.className = 'ws-player-status locked';
+      p2Stat.textContent = (gameMode === '1p' ? 'READY' : 'CHOOSING');
+      p2Stat.className = 'ws-player-status choosing';
+    }
+  }
 
   if (!wsPreviewFighter || wsPreviewFighter.id !== currR.id) {
     wsPreviewFighter = new Fighter(0, 1, currR.trunkC, currR.gloveC, currR.gloveC, currR.skin, currR.name, null, !!currR.beard, currR.id);
   }
 
+  // Prompt text — tells the user whose turn it is
   const prompt = document.getElementById('ws-prompt');
-  const btn = document.getElementById('startBtn');
-  
   if(prompt) {
-    if (gameMode === '1p') prompt.textContent = 'PLAYER 1 SELECT';
-    else prompt.textContent = window.wsSelectingPlayer === 1 ? 'PLAYER 1 SELECT' : 'PLAYER 2 SELECT';
-    prompt.style.color = window.wsSelectingPlayer === 1 ? '#ff3333' : '#33aaff';
+    if (gameMode === '1p') {
+      prompt.textContent = isP1Turn ? 'PLAYER 1 — SELECT YOUR FIGHTER' : 'VS CPU — PRESS READY!';
+      prompt.style.color = isP1Turn ? '#ff4444' : '#44ff88';
+    } else {
+      if (isP1Turn) {
+        prompt.textContent = 'PLAYER 1 — SELECT YOUR FIGHTER';
+        prompt.style.color = '#ff4444';
+      } else {
+        prompt.textContent = 'PLAYER 2 — SELECT YOUR FIGHTER';
+        prompt.style.color = '#44aaff';
+      }
+    }
   }
 
+  // READY button: only fully active when both have selected (P2 turn)
+  const btn = document.getElementById('startBtn');
   if(btn) {
-    if (window.wsSelectingPlayer === 2 || gameMode === '1p') {
+    if (window.wsSelectingPlayer === 2) {
       btn.classList.add('ready-active');
+      btn.textContent = 'FIGHT!';
     } else {
       btn.classList.remove('ready-active');
+      btn.textContent = 'WAITING...';
     }
   }
 };
@@ -1854,7 +1941,15 @@ function endMatch(){
   },400);
 }
 
-function showStartScreen(){gameRunning=false;document.getElementById('start-screen').style.display='flex';}
+function showStartScreen(){
+  gameRunning=false;
+  window.wsSelectingPlayer=1; // reset so P1 picks first
+  document.getElementById('start-screen').style.display='none';
+  const ms = document.getElementById('mode-selection');
+  ms.style.display='flex';
+  drawModeBg();
+  window.selectChar(0); // auto-hover first character for P1
+}
 
 let lastTime=0;
 function gameLoop(ts){
@@ -1882,6 +1977,8 @@ function gameLoop(ts){
 }
 
 document.getElementById('startBtn').addEventListener('click',()=>{
+  // Only start fight when both players have selected
+  if(window.wsSelectingPlayer !== 2) return;
   document.getElementById('start-screen').style.display='none';
   gameRunning=false;
   roundNum=1; roundOver=false; matchOver=false; roundTime=99;
@@ -2572,3 +2669,6 @@ function toggleMute() {
     btn.classList.toggle('muted', !_soundEnabled);
   }
 }
+
+// Initial call to start the game flow with mode selection
+showStartScreen();

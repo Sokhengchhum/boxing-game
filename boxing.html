@@ -96,67 +96,90 @@
     <div class="touch-btn kick-btn" id="t-kick" style="background:#ff0033;">KCK</div>
     <div class="touch-btn combo-btn" id="t-combo" style="background:#ff0055;">CMB</div>
   </div>
-  <div id="start-screen">
+  <!-- Mode Selection Screen -->
+  <div id="mode-selection">
+    <canvas id="mode-bg"></canvas>
+    <div class="mode-header">SELECT GAME MODE</div>
+    <div class="mode-container">
+      <div class="mode-card" onclick="selectModeAndContinue('1p')">
+        <div class="mode-icon">👤</div>
+        <div class="mode-title">SINGLE PLAYER</div>
+        <div class="mode-desc">VS CPU ARCADE MODE</div>
+      </div>
+      <div class="mode-card" onclick="selectModeAndContinue('2p')">
+        <div class="mode-icon">👥</div>
+        <div class="mode-title">TWO PLAYERS</div>
+        <div class="mode-desc">LOCAL VERSUS BATTLE</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="start-screen" style="display:none;">
     <canvas id="ws-crowd-bg"></canvas>
 
     <!-- Retro Header -->
-    <div class="ws-header">CHOOSE YOUR BRO</div>
+    <div class="ws-header">CHOOSE YOUR FIGHTER</div>
+    <div id="ws-prompt" class="ws-prompt">PLAYER 1 — SELECT YOUR FIGHTER</div>
 
     <!-- Character Selection Grid -->
     <div class="ws-grid-container">
       <div id="ws-grid"></div>
     </div>
 
-    <!-- 3-Column Bottom Layout -->
-    <div class="ws-bottom">
+    <!-- Two-Section Selection Layout -->
+    <div class="ws-selection-layout">
       
-      <!-- LEFT: Stats Panel -->
-      <div class="ws-col ws-stats-col">
-        <div id="ws-char-name">SELECT</div>
-
-        <div class="ws-stat-row">
-          <div class="ws-stat-label">WEIGHT</div>
-          <div class="ws-stat-bar-bg" id="ws-stat-weight"></div>
-        </div>
-        <div class="ws-stat-row">
-          <div class="ws-stat-label">HEIGHT</div>
-          <div class="ws-stat-bar-bg" id="ws-stat-height"></div>
-        </div>
-        <div class="ws-stat-row">
-          <div class="ws-stat-label">FLYING</div>
-          <div class="ws-stat-bar-bg" id="ws-stat-flying"></div>
-        </div>
-        <div class="ws-stat-row">
-          <div class="ws-stat-label">SPEED</div>
-          <div class="ws-stat-bar-bg" id="ws-stat-speed"></div>
-        </div>
-        <div class="ws-stat-row">
-          <div class="ws-stat-label">RECOVERY</div>
-          <div class="ws-stat-bar-bg" id="ws-stat-recovery"></div>
-        </div>
-        <div class="ws-stat-row">
-          <div class="ws-stat-label">DEFENSE</div>
-          <div class="ws-stat-bar-bg" id="ws-stat-defense"></div>
+      <!-- PLAYER 1 SECTION -->
+      <div class="ws-player-section ws-p1-area" id="ws-p1-section">
+        <div class="ws-player-status choosing" id="ws-p1-status">CHOOSING</div>
+        <div class="ws-side-header p1-label">PLAYER 1</div>
+        <div id="ws-p1-name" class="ws-name-display">SELECT</div>
+        <div class="ws-stats-box">
+          <div class="ws-stat-row"><div class="ws-stat-label">WGT</div><div class="ws-stat-bar-bg" id="ws-p1-stat-weight"></div></div>
+          <div class="ws-stat-row"><div class="ws-stat-label">HGT</div><div class="ws-stat-bar-bg" id="ws-p1-stat-height"></div></div>
+          <div class="ws-stat-row"><div class="ws-stat-label">FLY</div><div class="ws-stat-bar-bg" id="ws-p1-stat-flying"></div></div>
+          <div class="ws-stat-row"><div class="ws-stat-label">SPD</div><div class="ws-stat-bar-bg" id="ws-p1-stat-speed"></div></div>
+          <div class="ws-stat-row"><div class="ws-stat-label">REC</div><div class="ws-stat-bar-bg" id="ws-p1-stat-recovery"></div></div>
+          <div class="ws-stat-row"><div class="ws-stat-label">DEF</div><div class="ws-stat-bar-bg" id="ws-p1-stat-defense"></div></div>
         </div>
       </div>
 
-      <!-- CENTER: Live Ring Preview -->
-      <div class="ws-col ws-stage-col">
-        <canvas id="ws-preview-canvas" width="320" height="300"></canvas>
+      <!-- CENTER PREVIEW & GRID -->
+      <div class="ws-center-section">
+        <div class="ws-grid-container">
+          <div id="ws-grid"></div>
+        </div>
+        <div class="ws-stage-container">
+          <canvas id="ws-preview-canvas" width="360" height="260"></canvas>
+        </div>
       </div>
 
-      <!-- RIGHT: Controls -->
-      <div class="ws-col ws-ctrl-col">
-        
-        <!-- Clothing Icons -->
+      <!-- PLAYER 2 SECTION -->
+      <div class="ws-player-section ws-p2-area" id="ws-p2-section">
+        <div class="ws-player-status" id="ws-p2-status">WAITING...</div>
+        <div class="ws-side-header p2-label">PLAYER 2</div>
+        <div id="ws-p2-name" class="ws-name-display">SELECT</div>
+        <div class="ws-stats-box">
+          <div class="ws-stat-row"><div class="ws-stat-label">WGT</div><div class="ws-stat-bar-bg" id="ws-p2-stat-weight"></div></div>
+          <div class="ws-stat-row"><div class="ws-stat-label">HGT</div><div class="ws-stat-bar-bg" id="ws-p2-stat-height"></div></div>
+          <div class="ws-stat-row"><div class="ws-stat-label">FLY</div><div class="ws-stat-bar-bg" id="ws-p2-stat-flying"></div></div>
+          <div class="ws-stat-row"><div class="ws-stat-label">SPD</div><div class="ws-stat-bar-bg" id="ws-p2-stat-speed"></div></div>
+          <div class="ws-stat-row"><div class="ws-stat-label">REC</div><div class="ws-stat-bar-bg" id="ws-p2-stat-recovery"></div></div>
+          <div class="ws-stat-row"><div class="ws-stat-label">DEF</div><div class="ws-stat-bar-bg" id="ws-p2-stat-defense"></div></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Controls & Actions (Floating/Bottom) -->
+    <div class="ws-lower-controls">
+      <div class="ws-ctrl-col">
         <div class="ws-clothing-menu">
           <div class="ws-cloth-icon active">👕</div>
           <div class="ws-cloth-icon">👖</div>
           <div class="ws-cloth-icon">🧤</div>
           <div class="ws-cloth-icon">👟</div>
         </div>
-
-        <!-- Color Palette - row 1: colors -->
         <div class="ws-color-palette">
           <div class="ws-pal-row">
             <div class="ws-color-square" style="background:#fff;"></div>
@@ -170,35 +193,21 @@
             <div class="ws-color-square" style="background:#888;"></div>
             <div class="ws-color-square" style="background:#444;"></div>
           </div>
-          <!-- Row 2: star ratings -->
-          <div class="ws-pal-row">
-            <span class="ws-star" style="color:#e53935">★</span>
-            <span class="ws-star" style="color:#00e5ff">★</span>
-            <span class="ws-star" style="color:#00c853">★</span>
-            <span class="ws-star" style="color:#fff">★</span>
-            <span class="ws-star" style="color:#e040fb">★</span>
-            <span class="ws-star" style="color:#ffeb3b">★</span>
-            <span class="ws-star" style="color:#ff80ab">★</span>
-            <span class="ws-star" style="color:#888">★</span>
-            <span class="ws-star" style="color:#555">★</span>
-            <span class="ws-star" style="color:#333">★</span>
-          </div>
         </div>
-        
+      </div>
+      
+      <div class="ws-action-area">
         <div class="ws-mode-group">
           <button class="ws-tiny-btn active" id="btn2p" onclick="setMode('2p')">2P</button>
           <button class="ws-tiny-btn" id="btn1p" onclick="setMode('1p')">CPU</button>
         </div>
-        
         <div id="diff-section" style="display:none; margin-bottom:4px;">
           <button class="ws-tiny-btn active" id="dEasy" onclick="setDiff('easy')">EZ</button>
           <button class="ws-tiny-btn" id="dMedium" onclick="setDiff('medium')">MD</button>
           <button class="ws-tiny-btn" id="dHard" onclick="setDiff('hard')">HD</button>
         </div>
-
         <button class="ws-ready-btn" id="startBtn">READY!</button>
       </div>
-
     </div>
   </div>
 

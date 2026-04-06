@@ -1,452 +1,524 @@
 // ======== ANIMATION POSE SYSTEM ========
-// Full-body articulated fighter animation — modeled after real boxing mechanics.
+// Real-fighter movement engine. Every pose parameter maps to a visible body part.
 //
-// POSE PARAMS:
-//   upperLean   : torso forward/backward lean in degrees (+forward, –back)
-//   lowerSpread : stance width offset (wider = more planted)
-//   bob         : idle breathing amplitude
-//   lungeX      : forward translation in px (weight transfer)
-//   squash      : vertical scale (1=normal, <1=crouch, >1=stretch)
-//   upperY      : vertical body offset (+down, –up)
-//   hipX        : lateral hip shift for weight transfer
-//   frontElbow  : punch arm elbow angle (0°=fully extended, 90°=hook bend, 48°=guard)
-//
-// NEW — Real fighter body mechanics:
-//   shoulderRot : shoulder-line rotation in ° (independent of hip). +ve = front shoulder forward
-//   rearArmX    : rear (guard) glove X offset from default (-26)
-//   rearArmY    : rear (guard) glove Y offset from default (-86)
-//   headTiltX   : head lateral tilt in px (+right, -left) — chin tuck / slip
-//   headTiltY   : head vertical offset in px (+down, -up)
-//   frontFootX  : front foot step forward/back offset (px)
-//   rearFootX   : rear foot step forward/back offset (px)
-//   frontKnee   : front knee bend angle (0=straight, + = more bent)
-//   rearKnee    : rear knee bend angle
-//   torsoTwist  : upper body twist relative to hips (simulates separate hip/shoulder turn)
-//   armDirDeg   : override arm direction angle (forward angle from straight-down)
+// ── POSE PARAMETER REFERENCE ──
+// upperLean     : torso forward/back rotation in degrees (+forward, –back)
+// lowerSpread   : leg stance width offset in px (wider = more stable / power)
+// bob           : idle breathing amplitude (0 = frozen, 1+ = alive)
+// lungeX        : forward translation in px (weight commitment)
+// squash        : vertical scale (1=normal, <1=crouch/compress, >1=stretch/extend)
+// upperY        : vertical body offset in px (+down, –up)
+// hipX          : hip lateral shift in px (weight transfer between legs)
+// frontElbow    : punch arm elbow angle in ° (0=full extension, 48=guard, 90=hook)
+// shoulderTwist : shoulder rotation in degrees (+forward, –back)
+// headTilt      : head lean offset in ° (+forward/toward punch, –back/away)
+// backElbow     : guard/rear hand elbow angle (lower=tucked, higher=wide guard)
+// rearFootLift  : rear heel lift in px (0=flat, higher=pivoting on ball of foot)
+// guardY        : vertical offset of guard hand (–up, +down from default chin)
 
 const POSE_DEFS = {
-  // ─── NEUTRAL STATES ───
+  // ─── NEUTRAL / MOVEMENT ───────────────────────────────────────────
   idle: {
-    upperLean:0, lowerSpread:0, bob:1, lungeX:0, squash:1, upperY:0, hipX:0, frontElbow:48,
-    shoulderRot:0, rearArmX:0, rearArmY:0, headTiltX:0, headTiltY:0,
-    frontFootX:0, rearFootX:0, frontKnee:0, rearKnee:0, torsoTwist:0
+    upperLean:0,   lowerSpread:0,  bob:1,   lungeX:0,  squash:1,    upperY:0,
+    hipX:0,        frontElbow:48,  shoulderTwist:0,  headTilt:0,
+    backElbow:55,  rearFootLift:0, guardY:0
   },
   walk: {
-    upperLean:3, lowerSpread:0, bob:1.5, lungeX:0, squash:1, upperY:0, hipX:0, frontElbow:47,
-    shoulderRot:0, rearArmX:0, rearArmY:0, headTiltX:0, headTiltY:0,
-    frontFootX:0, rearFootX:0, frontKnee:0, rearKnee:0, torsoTwist:0
+    upperLean:3,   lowerSpread:2,  bob:1.5, lungeX:0,  squash:1,    upperY:0,
+    hipX:0,        frontElbow:46,  shoulderTwist:2,  headTilt:0,
+    backElbow:54,  rearFootLift:0, guardY:0
   },
 
-  // ─── JAB — lead hand, fast, body stays upright ───
-  // Reference row 1: guard → shoulder pops → arm straight out, body upright
+  // ─── CORE 4 PUNCHES (Real Boxing: Jab / Cross / Hook / Uppercut) ──
+
+  // JAB — Lead hand straight punch. Body stays tall and balanced.
+  //   • Minimal hip rotation, just a shoulder pop
+  //   • Lead foot steps slightly forward
+  //   • Rear hand stays glued to chin (guard discipline)
+  //   • Reference image: upright posture, arm fully extended
   jab: {
-    upperLean:10, lowerSpread:3, bob:0, lungeX:22, squash:1.02, upperY:-2, hipX:6, frontElbow:-8,
-    shoulderRot:12, rearArmX:4, rearArmY:6, headTiltX:-2, headTiltY:2,
-    frontFootX:6, rearFootX:-2, frontKnee:4, rearKnee:2, torsoTwist:8
+    upperLean:10,  lowerSpread:3,  bob:0,   lungeX:22, squash:1.02, upperY:-2,
+    hipX:6,        frontElbow:-8,  shoulderTwist:18, headTilt:4,
+    backElbow:62,  rearFootLift:0, guardY:-2
   },
 
-  // ─── CROSS — rear hand, full rotation ───
-  // Reference row 2: coil back → full hip drive → arm extended, body deeply rotated
+  // CROSS — Rear hand power straight. Full kinetic chain from floor to fist.
+  //   • Rear foot pivots hard (ball of foot), heel lifts
+  //   • Hips rotate ~90°, shoulders follow
+  //   • Weight transfers completely to lead leg
+  //   • Reference image: deep body rotation, full extension
   cross: {
-    upperLean:28, lowerSpread:6, bob:0, lungeX:20, squash:0.95, upperY:-4, hipX:18, frontElbow:-14,
-    shoulderRot:28, rearArmX:10, rearArmY:8, headTiltX:-3, headTiltY:3,
-    frontFootX:8, rearFootX:6, frontKnee:6, rearKnee:8, torsoTwist:22
+    upperLean:28,  lowerSpread:6,  bob:0,   lungeX:20, squash:0.95, upperY:-4,
+    hipX:20,       frontElbow:-14, shoulderTwist:38, headTilt:6,
+    backElbow:72,  rearFootLift:14, guardY:-4
   },
 
-  // ─── HOOK — 90° elbow, circular, close-range ───
-  // Reference row 3: setup → hip torque → circular arc impact
+  // HOOK — Lead hand circular punch. Elbow locked at 90°.
+  //   • Power comes from hip snap, NOT arm extension
+  //   • Body torques laterally around the centerline
+  //   • Compact range, devastating power
+  //   • Reference image: bent arm, horizontal fist trajectory
   hook: {
-    upperLean:-12, lowerSpread:5, bob:0, lungeX:8, squash:0.98, upperY:-5, hipX:14, frontElbow:90,
-    shoulderRot:-18, rearArmX:-6, rearArmY:4, headTiltX:4, headTiltY:1,
-    frontFootX:4, rearFootX:2, frontKnee:5, rearKnee:6, torsoTwist:-14
+    upperLean:-12, lowerSpread:5,  bob:0,   lungeX:8,  squash:0.98, upperY:-5,
+    hipX:16,       frontElbow:88,  shoulderTwist:-28, headTilt:-6,
+    backElbow:58,  rearFootLift:6, guardY:0
   },
 
-  // ─── UPPERCUT — dip then explosive upward ───
+  // UPPERCUT — Explosive upward from crouch. Ground power.
+  //   • Deep knee bend → explosive leg extension
+  //   • Fist travels tight upward arc: hip to chin
+  //   • Short range, punishing on ducking opponents
+  //   • Reference image: crouched fighter, fist rising from below
   upcut: {
-    upperLean:-14, lowerSpread:8, bob:0, lungeX:4, squash:1.06, upperY:-16, hipX:6, frontElbow:20,
-    shoulderRot:-8, rearArmX:2, rearArmY:10, headTiltX:0, headTiltY:-4,
-    frontFootX:2, rearFootX:4, frontKnee:10, rearKnee:12, torsoTwist:-6
+    upperLean:-14, lowerSpread:8,  bob:0,   lungeX:4,  squash:1.06, upperY:-16,
+    hipX:8,        frontElbow:20,  shoulderTwist:-16, headTilt:-8,
+    backElbow:60,  rearFootLift:4, guardY:4
   },
 
-  // ─── OTHER ATTACKS ───
+  // ─── OTHER ATTACKS ────────────────────────────────────────────────
   overhand: {
-    upperLean:22, lowerSpread:5, bob:0, lungeX:12, squash:0.92, upperY:5, hipX:14, frontElbow:-28,
-    shoulderRot:20, rearArmX:6, rearArmY:6, headTiltX:-2, headTiltY:4,
-    frontFootX:6, rearFootX:4, frontKnee:6, rearKnee:4, torsoTwist:16
+    upperLean:22,  lowerSpread:5,  bob:0,   lungeX:12, squash:0.92, upperY:5,
+    hipX:14,       frontElbow:-28, shoulderTwist:32, headTilt:8,
+    backElbow:68,  rearFootLift:10, guardY:2
   },
   body: {
-    upperLean:30, lowerSpread:6, bob:0, lungeX:12, squash:0.86, upperY:12, hipX:10, frontElbow:24,
-    shoulderRot:16, rearArmX:4, rearArmY:14, headTiltX:-1, headTiltY:6,
-    frontFootX:4, rearFootX:2, frontKnee:10, rearKnee:6, torsoTwist:12
+    upperLean:30,  lowerSpread:6,  bob:0,   lungeX:12, squash:0.86, upperY:12,
+    hipX:10,       frontElbow:24,  shoulderTwist:24, headTilt:10,
+    backElbow:52,  rearFootLift:4, guardY:8
   },
   dash: {
-    upperLean:32, lowerSpread:10, bob:0, lungeX:24, squash:0.92, upperY:-2, hipX:20, frontElbow:-6,
-    shoulderRot:24, rearArmX:8, rearArmY:4, headTiltX:-4, headTiltY:2,
-    frontFootX:14, rearFootX:-4, frontKnee:4, rearKnee:2, torsoTwist:18
+    upperLean:32,  lowerSpread:10, bob:0,   lungeX:24, squash:0.92, upperY:-2,
+    hipX:22,       frontElbow:-6,  shoulderTwist:36, headTilt:4,
+    backElbow:70,  rearFootLift:8, guardY:-2
   },
   super: {
-    upperLean:28, lowerSpread:8, bob:0, lungeX:20, squash:0.94, upperY:-4, hipX:18, frontElbow:-18,
-    shoulderRot:26, rearArmX:8, rearArmY:6, headTiltX:-3, headTiltY:2,
-    frontFootX:10, rearFootX:4, frontKnee:6, rearKnee:6, torsoTwist:20
+    upperLean:28,  lowerSpread:8,  bob:0,   lungeX:20, squash:0.94, upperY:-4,
+    hipX:18,       frontElbow:-18, shoulderTwist:40, headTilt:6,
+    backElbow:72,  rearFootLift:12, guardY:-4
   },
 
-  // ─── DEFENSIVE ───
+  // ─── DEFENSIVE ────────────────────────────────────────────────────
   block: {
-    upperLean:-6, lowerSpread:2, bob:0, lungeX:-4, squash:0.96, upperY:3, hipX:-4, frontElbow:62,
-    shoulderRot:-4, rearArmX:8, rearArmY:-14, headTiltX:0, headTiltY:4,
-    frontFootX:-2, rearFootX:0, frontKnee:4, rearKnee:4, torsoTwist:0
+    upperLean:-6,  lowerSpread:2,  bob:0,   lungeX:-4, squash:0.96, upperY:3,
+    hipX:-4,       frontElbow:62,  shoulderTwist:-4, headTilt:-12,
+    backElbow:72,  rearFootLift:0, guardY:-8
   },
   duck: {
-    upperLean:10, lowerSpread:10, bob:0, lungeX:0, squash:0.78, upperY:18, hipX:0, frontElbow:42,
-    shoulderRot:0, rearArmX:4, rearArmY:10, headTiltX:0, headTiltY:12,
-    frontFootX:2, rearFootX:-2, frontKnee:14, rearKnee:14, torsoTwist:0
+    upperLean:10,  lowerSpread:12, bob:0,   lungeX:0,  squash:0.76, upperY:20,
+    hipX:0,        frontElbow:44,  shoulderTwist:0,  headTilt:-16,
+    backElbow:56,  rearFootLift:0, guardY:-6
   },
   pull: {
-    upperLean:-18, lowerSpread:2, bob:0, lungeX:-8, squash:1, upperY:0, hipX:-6, frontElbow:52,
-    shoulderRot:-6, rearArmX:0, rearArmY:0, headTiltX:3, headTiltY:-2,
-    frontFootX:-6, rearFootX:4, frontKnee:2, rearKnee:6, torsoTwist:-4
+    upperLean:-20, lowerSpread:2,  bob:0,   lungeX:-10,squash:1,    upperY:0,
+    hipX:-8,       frontElbow:52,  shoulderTwist:-14, headTilt:-18,
+    backElbow:58,  rearFootLift:0, guardY:-4
   },
   slip: {
-    upperLean:14, lowerSpread:3, bob:0, lungeX:4, squash:0.95, upperY:6, hipX:4, frontElbow:42,
-    shoulderRot:6, rearArmX:2, rearArmY:4, headTiltX:8, headTiltY:4,
-    frontFootX:2, rearFootX:0, frontKnee:4, rearKnee:2, torsoTwist:4
+    upperLean:14,  lowerSpread:4,  bob:0,   lungeX:4,  squash:0.95, upperY:6,
+    hipX:6,        frontElbow:42,  shoulderTwist:8,  headTilt:14,
+    backElbow:50,  rearFootLift:0, guardY:2
   },
 
-  // ─── REACTIONS ───
+  // ─── REACTIONS ────────────────────────────────────────────────────
   hurt: {
-    upperLean:-40, lowerSpread:2, bob:0, lungeX:-12, squash:1.05, upperY:0, hipX:-8, frontElbow:32,
-    shoulderRot:-10, rearArmX:-8, rearArmY:6, headTiltX:-6, headTiltY:8,
-    frontFootX:-4, rearFootX:4, frontKnee:4, rearKnee:2, torsoTwist:-8
+    upperLean:-42, lowerSpread:4,  bob:0,   lungeX:-14,squash:1.05, upperY:0,
+    hipX:-10,      frontElbow:30,  shoulderTwist:-20, headTilt:-24,
+    backElbow:40,  rearFootLift:0, guardY:6
   },
   ko: {
-    upperLean:-85, lowerSpread:-5, bob:0, lungeX:-25, squash:1.1, upperY:45, hipX:-10, frontElbow:5,
-    shoulderRot:-30, rearArmX:-14, rearArmY:20, headTiltX:-10, headTiltY:20,
-    frontFootX:-8, rearFootX:8, frontKnee:0, rearKnee:0, torsoTwist:-20
+    upperLean:-85, lowerSpread:-5, bob:0,   lungeX:-25,squash:1.1,  upperY:45,
+    hipX:-10,      frontElbow:5,   shoulderTwist:-30, headTilt:-40,
+    backElbow:20,  rearFootLift:0, guardY:20
   },
 
-  // ─── SPECIAL ───
+  // ─── SPECIAL ──────────────────────────────────────────────────────
   kick: {
-    upperLean:-22, lowerSpread:-15, bob:0, lungeX:16, squash:0.85, upperY:25, hipX:12, frontElbow:62,
-    shoulderRot:-12, rearArmX:-4, rearArmY:8, headTiltX:0, headTiltY:0,
-    frontFootX:20, rearFootX:0, frontKnee:-10, rearKnee:8, torsoTwist:-8
+    upperLean:-22, lowerSpread:-15,bob:0,   lungeX:16, squash:0.85, upperY:25,
+    hipX:12,       frontElbow:62,  shoulderTwist:-10, headTilt:0,
+    backElbow:58,  rearFootLift:0, guardY:0
   },
   jump: {
-    upperLean:0, lowerSpread:6, bob:0, lungeX:0, squash:1.04, upperY:-6, hipX:0, frontElbow:46,
-    shoulderRot:0, rearArmX:0, rearArmY:-4, headTiltX:0, headTiltY:-2,
-    frontFootX:0, rearFootX:0, frontKnee:6, rearKnee:6, torsoTwist:0
+    upperLean:0,   lowerSpread:6,  bob:0,   lungeX:0,  squash:1.04, upperY:-6,
+    hipX:0,        frontElbow:46,  shoulderTwist:0,  headTilt:0,
+    backElbow:54,  rearFootLift:0, guardY:0
   },
 };
 const POSE_DEFAULT = POSE_DEFS.idle;
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  MULTI-PHASE ANIMATION KEYFRAMES
-//  Each phase: { p = pose deltas, dur = frames, sp = lerp speed }
+// ═══════════════════════════════════════════════════════════════════════════
+// MULTI-PHASE ANIMATION KEYFRAMES — Real Fighter Movement
+// ═══════════════════════════════════════════════════════════════════════════
+// Each phase: { p = pose overrides, dur = frame count, sp = lerp speed }
 //
-//  Based on the 3-pose reference images showing real boxing mechanics:
-//    Image 1 (guard → extend → full extension): shows each punch as 3-step sequence
-//    Guard position → body loads/coils → full extension with weight transfer
+// Real boxing punch sequence (kinetic chain):
+//   Floor → Ankles → Knees → Hips → Core → Shoulders → Elbow → Fist
 //
-//  NEW: each phase now includes full-body mechanical data:
-//    - shoulderRot: independent shoulder rotation (separate from hip)
-//    - torsoTwist: upper/lower body separation (kinetic chain)
-//    - rearArmX/Y: rear guard hand tracks independently
-//    - frontFootX/rearFootX: feet step and pivot
-//    - frontKnee/rearKnee: knee bend for power generation
-//    - headTiltX/Y: head protection and natural tilt
-// ═══════════════════════════════════════════════════════════════════════════════
+// Each punch encoded with these sub-phases:
+//   1. LOAD    — weight shift, stance adjustment, breath in
+//   2. COIL    — hip pre-rotation, shoulder loading
+//   3. FIRE    — explosive hip drive, arm extension begins 
+//   4. IMPACT  — maximum extension, peak power transfer
+//   5. FREEZE  — impact hold (hit-stop feel for game juice)
+//   6. RETRACT — arm pulls back, weight recenters
+//   7. RESET   — return to guard stance
 const ANIM_PHASES = {
 
-  // ═══════════════════════════════════════════════════════════════════════
-  //  JAB — Quick lead-hand piston punch
-  //  Reference: 3 poses showing guard → shoulder pop → full arm extension
-  //  Real mechanics: Front shoulder pops forward, rear hand stays at chin,
-  //  minimal hip rotation, body stays upright, front foot plants.
-  // ═══════════════════════════════════════════════════════════════════════
+  // ─────────────────────────────────────────────────────────────────
+  //  JAB — The bread and butter. Speed punch.
+  //  Real mechanics: Shoulder pops, arm pistons out, body stays 
+  //  upright and balanced. Rear hand NEVER leaves chin.
+  //  From guard → slight shoulder load → snap out → snap back.
+  //  Total: ~20 frames at 60fps ≈ 0.33 seconds (realistic jab speed)
+  // ─────────────────────────────────────────────────────────────────
   jab: [
-    // Phase 1: LOAD — slight shoulder cock, rear hand tightens to chin
-    //   Rear knee bends slightly to load. Head tilts behind front shoulder for protection.
+    // 1. LOAD — Settle weight, rear hand tightens to chin
     { p:{
-      upperLean:-2, lungeX:-2, squash:1.03, upperY:2, lowerSpread:2, hipX:-3, frontElbow:55,
-      shoulderRot:-4, rearArmX:6, rearArmY:-4, headTiltX:-1, headTiltY:1,
-      frontFootX:-1, rearFootX:1, frontKnee:3, rearKnee:4, torsoTwist:-3
-    }, dur:3, sp:0.55 },
+      upperLean:-2, lungeX:-3, squash:1.02, upperY:2,  lowerSpread:2,
+      hipX:-2,      frontElbow:54, shoulderTwist:-4,  headTilt:-2,
+      backElbow:62, rearFootLift:0, guardY:-3
+    }, dur:2, sp:0.55 },
 
-    // Phase 2: PUSH — front shoulder fires forward, arm extends fast
-    //   Weight shifts to front foot. Shoulder leads the fist. Rear hand guards chin.
-    //   Reference pose 2: body still upright, arm shooting forward.
+    // 2. COIL — Lead shoulder rotates back fractionally (loading the spring)
     { p:{
-      upperLean:10, lungeX:24, squash:1.04, upperY:-2, lowerSpread:3, hipX:6, frontElbow:-4,
-      shoulderRot:14, rearArmX:5, rearArmY:4, headTiltX:-2, headTiltY:2,
-      frontFootX:5, rearFootX:-1, frontKnee:2, rearKnee:3, torsoTwist:10
+      upperLean:-1, lungeX:-2, squash:1.03, upperY:2,  lowerSpread:2,
+      hipX:-3,      frontElbow:52, shoulderTwist:-6,  headTilt:-2,
+      backElbow:64, rearFootLift:0, guardY:-4
+    }, dur:2, sp:0.60 },
+
+    // 3. FIRE — Shoulder POPS forward, arm shoots straight out like a piston
+    //    Lead foot pushes slightly, hip barely rotates (that's what makes it fast)
+    { p:{
+      upperLean:12, lungeX:24, squash:1.04, upperY:-3, lowerSpread:3,
+      hipX:6,       frontElbow:-4, shoulderTwist:16,  headTilt:4,
+      backElbow:64, rearFootLift:2, guardY:-3
     }, dur:4, sp:0.90 },
 
-    // Phase 3: IMPACT — fully locked out arm, maximum reach
-    //   Reference pose 3: Full extension, front shoulder rotated forward,
-    //   head tucked behind shoulder for protection, rear hand at chin.
+    // 4. IMPACT — Arm locked out, fist at maximum reach, shoulder forward
+    //    Body stays tall and centered (not overcommitted like a cross)
     { p:{
-      upperLean:14, lungeX:30, squash:1.02, upperY:-3, lowerSpread:3, hipX:8, frontElbow:-10,
-      shoulderRot:16, rearArmX:6, rearArmY:6, headTiltX:-3, headTiltY:2,
-      frontFootX:7, rearFootX:-2, frontKnee:1, rearKnee:3, torsoTwist:12
-    }, dur:4, sp:0.96 },
+      upperLean:14, lungeX:28, squash:1.02, upperY:-3, lowerSpread:3,
+      hipX:7,       frontElbow:-10, shoulderTwist:20, headTilt:5,
+      backElbow:66, rearFootLift:2, guardY:-2
+    }, dur:3, sp:0.96 },
 
-    // Phase 4: SNAP-BACK — fast arm retract (jab's signature speed)
-    //   Shoulder pulls back, head returns to center, feet resettle.
+    // 5. FREEZE — Impact hold (1 game-frame for responsive feel)
     { p:{
-      upperLean:4, lungeX:8, squash:1, upperY:-1, lowerSpread:1, hipX:2, frontElbow:38,
-      shoulderRot:4, rearArmX:2, rearArmY:1, headTiltX:-1, headTiltY:0,
-      frontFootX:2, rearFootX:0, frontKnee:1, rearKnee:1, torsoTwist:3
-    }, dur:4, sp:0.78 },
+      upperLean:13, lungeX:26, squash:1.02, upperY:-3, lowerSpread:3,
+      hipX:6,       frontElbow:-8,  shoulderTwist:18, headTilt:5,
+      backElbow:64, rearFootLift:1, guardY:-2
+    }, dur:2, sp:0.98 },
 
-    // Phase 5: RETURN TO GUARD
+    // 6. RETRACT — Fast snap-back (jab's defining quality)
     { p:{
-      upperLean:0, lungeX:0, squash:1, upperY:0, lowerSpread:0, hipX:0, frontElbow:48,
-      shoulderRot:0, rearArmX:0, rearArmY:0, headTiltX:0, headTiltY:0,
-      frontFootX:0, rearFootX:0, frontKnee:0, rearKnee:0, torsoTwist:0
-    }, dur:5, sp:0.30 },
+      upperLean:4,  lungeX:6,  squash:1,    upperY:-1, lowerSpread:1,
+      hipX:2,       frontElbow:40, shoulderTwist:4,  headTilt:1,
+      backElbow:58, rearFootLift:0, guardY:-1
+    }, dur:3, sp:0.78 },
+
+    // 7. RESET — Return to guard
+    { p:{
+      upperLean:0,  lungeX:0,  squash:1,    upperY:0,  lowerSpread:0,
+      hipX:0,       frontElbow:48, shoulderTwist:0,  headTilt:0,
+      backElbow:55, rearFootLift:0, guardY:0
+    }, dur:4, sp:0.30 },
   ],
 
-  // ═══════════════════════════════════════════════════════════════════════
-  //  CROSS — Powerful rear-hand straight punch
-  //  Reference: 3 poses showing the kinetic chain (ground → hip → shoulder → fist)
-  //  Real mechanics: Rear foot pivots on ball, hip drives forward and rotates,
-  //  shoulders follow hips with delay (torsoTwist), rear hand becomes the
-  //  punching hand, lead hand drops to guard body.
-  // ═══════════════════════════════════════════════════════════════════════
+  // ─────────────────────────────────────────────────────────────────
+  //  CROSS — The power straight. Full kinetic chain.
+  //  Real mechanics: Power starts at the FLOOR. Rear foot pivots
+  //  (heel lifts), hips SNAP forward, shoulders rotate through,
+  //  arm extends LAST. Full body weight transfers to lead leg.
+  //  Total: ~32 frames ≈ 0.53 seconds (realistic cross speed)
+  // ─────────────────────────────────────────────────────────────────
   cross: [
-    // Phase 1: COIL — Weight loads onto rear leg, torso coils
-    //   Rear foot plants hard, rear knee bends for power. Shoulders pull back
-    //   OPPOSITE to the punch direction (loading the whip). Head stays protected.
+    // 1. LOAD — Weight settles onto rear leg, stance widens for base
+    //    Rear heel is planted, preparing to pivot
     { p:{
-      upperLean:-10, lungeX:-6, squash:0.96, upperY:5, lowerSpread:7, hipX:-16, frontElbow:58,
-      shoulderRot:-14, rearArmX:-4, rearArmY:-6, headTiltX:2, headTiltY:2,
-      frontFootX:-2, rearFootX:2, frontKnee:4, rearKnee:10, torsoTwist:-12
-    }, dur:6, sp:0.40 },
+      upperLean:-6, lungeX:-4, squash:0.97, upperY:4,  lowerSpread:6,
+      hipX:-14,     frontElbow:56, shoulderTwist:-12, headTilt:-4,
+      backElbow:60, rearFootLift:0, guardY:-2
+    }, dur:4, sp:0.38 },
 
-    // Phase 2: HIP DRIVE — hips fire first (kinetic chain starts from ground)
-    //   Rear foot pivots (rearFootX increases). Hips rotate before shoulders
-    //   (torsoTwist separates hip and shoulder timing). Rear knee extends.
-    //   This is the "torque gap" — hips lead, shoulders lag = maximum power.
+    // 2. COIL — Hips pre-rotate AWAY from punch (loading the whip)
+    //    Rear shoulder pulls back, creating maximum rotation potential
+    //    Rear foot begins to pivot (heel starts lifting)
     { p:{
-      upperLean:14, lungeX:14, squash:0.94, upperY:0, lowerSpread:7, hipX:10, frontElbow:8,
-      shoulderRot:8, rearArmX:2, rearArmY:4, headTiltX:-1, headTiltY:2,
-      frontFootX:4, rearFootX:6, frontKnee:3, rearKnee:6, torsoTwist:8
-    }, dur:5, sp:0.65 },
+      upperLean:-10, lungeX:-6, squash:0.96, upperY:5, lowerSpread:7,
+      hipX:-18,      frontElbow:58, shoulderTwist:-18, headTilt:-5,
+      backElbow:62,  rearFootLift:3, guardY:-3
+    }, dur:3, sp:0.45 },
 
-    // Phase 3: SHOULDER WHIP — shoulders catch up to hips, arm extends
-    //   Shoulder rotation overtakes hip rotation. The "whip" crack effect.
-    //   Arm rapidly extends. Weight fully on front foot. Head behind shoulder.
+    // 3. FIRE — EXPLOSIVE HIP DRIVE. This is THE moment.
+    //    Rear foot pivots hard (heel way up), hips SNAP forward,
+    //    shoulders begin rotating, arm starts extending.
+    //    Weight rushing onto lead leg.
     { p:{
-      upperLean:30, lungeX:28, squash:0.90, upperY:-3, lowerSpread:8, hipX:18, frontElbow:-10,
-      shoulderRot:26, rearArmX:8, rearArmY:8, headTiltX:-4, headTiltY:3,
-      frontFootX:8, rearFootX:8, frontKnee:4, rearKnee:4, torsoTwist:20
-    }, dur:5, sp:0.82 },
+      upperLean:18, lungeX:18, squash:0.92, upperY:-1, lowerSpread:7,
+      hipX:14,      frontElbow:-2, shoulderTwist:28, headTilt:4,
+      backElbow:68, rearFootLift:12, guardY:-4
+    }, dur:5, sp:0.70 },
 
-    // Phase 4: FULL IMPACT — maximum rotation, arm locked, body committed
-    //   Reference final pose: body has rotated ~90°, arm fully extended,
-    //   rear foot on ball, front knee slightly bent absorbing weight.
+    // 4. IMPACT — Maximum rotation achieved. Arm fully locked out.
+    //    Rear shoulder is now FORWARD. Hips fully committed.
+    //    Feel the weight of the whole body behind the fist.
     { p:{
-      upperLean:36, lungeX:34, squash:0.88, upperY:-5, lowerSpread:8, hipX:22, frontElbow:-16,
-      shoulderRot:30, rearArmX:10, rearArmY:10, headTiltX:-4, headTiltY:3,
-      frontFootX:10, rearFootX:10, frontKnee:5, rearKnee:2, torsoTwist:24
-    }, dur:5, sp:0.94 },
+      upperLean:36, lungeX:34, squash:0.87, upperY:-5, lowerSpread:8,
+      hipX:22,      frontElbow:-16, shoulderTwist:42, headTilt:7,
+      backElbow:74, rearFootLift:16, guardY:-5
+    }, dur:5, sp:0.92 },
 
-    // Phase 5: RECOVERY — partial retract for combo chaining
+    // 5. FREEZE — Impact hold for game feel, slight recoil absorption
     { p:{
-      upperLean:12, lungeX:10, squash:0.96, upperY:0, lowerSpread:4, hipX:6, frontElbow:30,
-      shoulderRot:8, rearArmX:4, rearArmY:4, headTiltX:-1, headTiltY:1,
-      frontFootX:4, rearFootX:4, frontKnee:2, rearKnee:2, torsoTwist:6
+      upperLean:34, lungeX:32, squash:0.89, upperY:-4, lowerSpread:7,
+      hipX:20,      frontElbow:-14, shoulderTwist:40, headTilt:6,
+      backElbow:72, rearFootLift:14, guardY:-4
+    }, dur:4, sp:0.96 },
+
+    // 6. RETRACT — Arm pulls back, hips begin derotating
+    //    Weight starts recentering. Rear foot settles.
+    { p:{
+      upperLean:14, lungeX:12, squash:0.95, upperY:0,  lowerSpread:4,
+      hipX:8,       frontElbow:28, shoulderTwist:14, headTilt:2,
+      backElbow:60, rearFootLift:6, guardY:-1
     }, dur:5, sp:0.42 },
 
-    // Phase 6: RETURN TO GUARD
+    // 7. RESET — Return to guard
     { p:{
-      upperLean:0, lungeX:0, squash:1, upperY:0, lowerSpread:0, hipX:0, frontElbow:48,
-      shoulderRot:0, rearArmX:0, rearArmY:0, headTiltX:0, headTiltY:0,
-      frontFootX:0, rearFootX:0, frontKnee:0, rearKnee:0, torsoTwist:0
+      upperLean:0,  lungeX:0,  squash:1,    upperY:0,  lowerSpread:0,
+      hipX:0,       frontElbow:48, shoulderTwist:0,  headTilt:0,
+      backElbow:55, rearFootLift:0, guardY:0
     }, dur:6, sp:0.25 },
   ],
 
-  // ═══════════════════════════════════════════════════════════════════════
-  //  LEAD HOOK — Compact circular punch at close range
-  //  Reference: 3 poses showing setup → lateral rotation → circular impact
-  //  Real mechanics: Elbow LOCKS at 90°, arm is one rigid unit from elbow to fist.
-  //  Power comes from explosive hip rotation. Front foot pivots. Head drops behind
-  //  shoulder. Rear hand stays at chin for protection.
-  // ═══════════════════════════════════════════════════════════════════════
+  // ─────────────────────────────────────────────────────────────────
+  //  HOOK — Circular power punch. Close range devastation.
+  //  Real mechanics: Elbow STAYS at 90° the entire time.
+  //  Power comes ENTIRELY from hip torque + foot pivot.
+  //  Arm doesn't extend — it SWINGS horizontally.
+  //  Like a door slamming shut: the hinge (shoulder) rotates,
+  //  the edge (fist) whips around in an arc.
+  //  Total: ~28 frames ≈ 0.47 seconds
+  // ─────────────────────────────────────────────────────────────────
   hook: [
-    // Phase 1: SETUP — Elbow rises to 90°, hips coil opposite
-    //   Front foot adjusts for pivot. Shoulders pull back to load rotation.
-    //   Head tucks slightly. Rear hand tightens to chin.
+    // 1. LOAD — Elbow rises to 90°, weight shifts to rear leg
+    //    Hips coil AWAY from punch direction to load the spring
     { p:{
-      upperLean:-12, lungeX:2, squash:1.03, upperY:-3, lowerSpread:5, hipX:-12, frontElbow:92,
-      shoulderRot:-16, rearArmX:-4, rearArmY:-6, headTiltX:3, headTiltY:1,
-      frontFootX:2, rearFootX:-1, frontKnee:5, rearKnee:6, torsoTwist:-12
-    }, dur:5, sp:0.45 },
+      upperLean:-8, lungeX:2,  squash:1.02, upperY:-3, lowerSpread:5,
+      hipX:-10,     frontElbow:88, shoulderTwist:-20, headTilt:-6,
+      backElbow:56, rearFootLift:2, guardY:-2
+    }, dur:4, sp:0.42 },
 
-    // Phase 2: HIP SNAP — Explosive lateral rotation
-    //   Front foot pivots (toes turn in). Both knees drive the rotation.
-    //   Shoulders begin whipping around. Elbow stays locked at 90°.
-    //   This is the "door swinging" mechanic — body IS the hinge.
+    // 2. COIL — Maximum load. Hips coiled fully opposite.
+    //    Like winding up a corkscrew. Energy stored in obliques.
     { p:{
-      upperLean:-26, lungeX:8, squash:0.95, upperY:-6, lowerSpread:7, hipX:14, frontElbow:90,
-      shoulderRot:-24, rearArmX:-6, rearArmY:2, headTiltX:5, headTiltY:2,
-      frontFootX:4, rearFootX:3, frontKnee:6, rearKnee:7, torsoTwist:-18
-    }, dur:5, sp:0.75 },
+      upperLean:-14, lungeX:2, squash:1.03, upperY:-4, lowerSpread:6,
+      hipX:-14,      frontElbow:92, shoulderTwist:-26, headTilt:-8,
+      backElbow:58,  rearFootLift:4, guardY:-3
+    }, dur:3, sp:0.50 },
 
-    // Phase 3: IMPACT — Peak circular force, fist arrives at target
-    //   Maximum body rotation. Fist has traveled full 90° arc.
-    //   Front foot fully pivoted. Head is down behind shoulder.
-    //   Reference: fist horizontal, body deeply torqued, compact deadly arc.
+    // 3. FIRE — HIP SNAP! Explosive uncoiling.
+    //    Lead foot pivots, hips FIRE around. Elbow stays bent.
+    //    Fist begins horizontal arc toward target.
     { p:{
-      upperLean:-34, lungeX:12, squash:0.92, upperY:-8, lowerSpread:8, hipX:20, frontElbow:86,
-      shoulderRot:-30, rearArmX:-8, rearArmY:4, headTiltX:6, headTiltY:3,
-      frontFootX:6, rearFootX:4, frontKnee:5, rearKnee:5, torsoTwist:-22
+      upperLean:-26, lungeX:10, squash:0.94, upperY:-7, lowerSpread:7,
+      hipX:14,       frontElbow:88, shoulderTwist:-34, headTilt:-4,
+      backElbow:54,  rearFootLift:8, guardY:-2
+    }, dur:4, sp:0.78 },
+
+    // 4. IMPACT — Peak rotation. Fist at widest arc point.
+    //    Entire body weight rotating INTO the punch.
+    //    This is where the hook LANDS — devastating lateral force.
+    { p:{
+      upperLean:-34, lungeX:14, squash:0.91, upperY:-8, lowerSpread:8,
+      hipX:20,       frontElbow:86, shoulderTwist:-40, headTilt:-2,
+      backElbow:52,  rearFootLift:10, guardY:-1
+    }, dur:4, sp:0.94 },
+
+    // 5. FREEZE — Impact hold
+    { p:{
+      upperLean:-32, lungeX:12, squash:0.92, upperY:-7, lowerSpread:7,
+      hipX:18,       frontElbow:86, shoulderTwist:-38, headTilt:-2,
+      backElbow:52,  rearFootLift:8, guardY:-1
+    }, dur:3, sp:0.96 },
+
+    // 6. FOLLOW-THROUGH — Rotation continues past target naturally
+    //    Body decelerates. Weight settling.
+    { p:{
+      upperLean:-18, lungeX:6,  squash:0.96, upperY:-4, lowerSpread:4,
+      hipX:10,       frontElbow:76, shoulderTwist:-20, headTilt:-1,
+      backElbow:54,  rearFootLift:4, guardY:0
+    }, dur:4, sp:0.42 },
+
+    // 7. RESET
+    { p:{
+      upperLean:0,   lungeX:0,  squash:1,    upperY:0,  lowerSpread:0,
+      hipX:0,        frontElbow:48, shoulderTwist:0,  headTilt:0,
+      backElbow:55,  rearFootLift:0, guardY:0
+    }, dur:6, sp:0.25 },
+  ],
+
+  // ─────────────────────────────────────────────────────────────────
+  //  UPPERCUT — Explosive upward strike from below.
+  //  Real mechanics: Fighter DIPS (deep knee bend), drops center
+  //  of mass, then EXPLODES upward. Fist travels tight vertical
+  //  arc from hip to chin. Power generated by LEG EXTENSION.
+  //  Short range, but the most punishing punch in boxing.
+  //  Total: ~28 frames ≈ 0.47 seconds
+  // ─────────────────────────────────────────────────────────────────
+  upcut: [
+    // 1. LOAD — Begin dropping. Knees start bending.
+    //    Weight sinks, stance widens for stability.
+    { p:{
+      upperLean:4,  lungeX:0,  squash:0.82, upperY:18, lowerSpread:10,
+      hipX:-2,      frontElbow:58, shoulderTwist:-4,  headTilt:-6,
+      backElbow:56, rearFootLift:0, guardY:2
+    }, dur:3, sp:0.40 },
+
+    // 2. DEEP DIP — Maximum compression. Knees deeply bent.
+    //    Center of mass at lowest point. Fist drops to hip level.
+    //    This is the "loaded spring" — all energy stored in quads.
+    { p:{
+      upperLean:6,  lungeX:0,  squash:0.68, upperY:32, lowerSpread:14,
+      hipX:-4,      frontElbow:62, shoulderTwist:-6,  headTilt:-8,
+      backElbow:54, rearFootLift:0, guardY:4
+    }, dur:4, sp:0.50 },
+
+    // 3. SECONDARY DIP — Arm curls down ready for upward fire.
+    //    Slight extra loading, fist at waist level now.
+    { p:{
+      upperLean:5,  lungeX:2,  squash:0.66, upperY:34, lowerSpread:14,
+      hipX:-3,      frontElbow:55, shoulderTwist:-4,  headTilt:-6,
+      backElbow:52, rearFootLift:0, guardY:5
+    }, dur:2, sp:0.55 },
+
+    // 4. FIRE — EXPLOSIVE UPWARD DRIVE!
+    //    Legs EXTEND powerfully. Body rockets upward.
+    //    Fist rips straight up from hip toward chin.
+    //    (squash goes from 0.66 → 1.20, dramatic stretch!)
+    { p:{
+      upperLean:-14, lungeX:6, squash:1.20, upperY:-6, lowerSpread:8,
+      hipX:10,       frontElbow:26, shoulderTwist:-14, headTilt:2,
+      backElbow:60,  rearFootLift:6, guardY:-2
+    }, dur:4, sp:0.88 },
+
+    // 5. IMPACT — Fist at MAXIMUM HEIGHT. Body fully extended.
+    //    Fighter may be on tippy-toes from the explosive extension.
+    //    Devastating upward force under opponent's chin.
+    { p:{
+      upperLean:-28, lungeX:5, squash:1.16, upperY:-24, lowerSpread:7,
+      hipX:12,       frontElbow:12, shoulderTwist:-18, headTilt:4,
+      backElbow:62,  rearFootLift:8, guardY:-4
+    }, dur:4, sp:0.94 },
+
+    // 6. FREEZE — Impact hold
+    { p:{
+      upperLean:-26, lungeX:4, squash:1.12, upperY:-20, lowerSpread:6,
+      hipX:10,       frontElbow:14, shoulderTwist:-16, headTilt:3,
+      backElbow:60,  rearFootLift:6, guardY:-3
+    }, dur:2, sp:0.96 },
+
+    // 7. RETRACT — Fist comes back, body settles from stretch
+    { p:{
+      upperLean:-8, lungeX:2,  squash:1.02, upperY:-6, lowerSpread:4,
+      hipX:4,       frontElbow:40, shoulderTwist:-6,  headTilt:0,
+      backElbow:56, rearFootLift:2, guardY:0
+    }, dur:4, sp:0.38 },
+
+    // 8. RESET
+    { p:{
+      upperLean:0,  lungeX:0,  squash:1,    upperY:0,  lowerSpread:0,
+      hipX:0,       frontElbow:48, shoulderTwist:0,  headTilt:0,
+      backElbow:55, rearFootLift:0, guardY:0
+    }, dur:5, sp:0.25 },
+  ],
+
+  // ─────────────────────────────────────────────────────────────────
+  //  OVERHAND — Looping rear punch that arcs OVER the guard.
+  //  Real mechanics: Similar chain to cross but trajectory goes
+  //  UP and OVER, crashing down past the opponent's raised guard.
+  // ─────────────────────────────────────────────────────────────────
+  overhand: [
+    // 1. LOAD — Weight back, rear hand lifts HIGH
+    { p:{
+      upperLean:-6, lungeX:-4, squash:0.96, upperY:3,  lowerSpread:5,
+      hipX:-10,     frontElbow:-18, shoulderTwist:-14, headTilt:-4,
+      backElbow:62, rearFootLift:2,  guardY:-2
+    }, dur:4, sp:0.38 },
+
+    // 2. COIL — Arm arcs UP. Shoulder loads. Trajectory going overhead.
+    { p:{
+      upperLean:8,  lungeX:8,  squash:0.94, upperY:-10, lowerSpread:5,
+      hipX:6,       frontElbow:-26, shoulderTwist:18,  headTilt:4,
+      backElbow:66, rearFootLift:8,  guardY:-4
+    }, dur:4, sp:0.55 },
+
+    // 3. OVER-THE-TOP — Arm at apex, crashing DOWN
+    { p:{
+      upperLean:28, lungeX:22, squash:0.90, upperY:4,  lowerSpread:6,
+      hipX:16,      frontElbow:-32, shoulderTwist:34,  headTilt:8,
+      backElbow:70, rearFootLift:14, guardY:0
+    }, dur:5, sp:0.78 },
+
+    // 4. IMPACT — Crashes down past guard
+    { p:{
+      upperLean:38, lungeX:28, squash:0.86, upperY:10, lowerSpread:6,
+      hipX:20,      frontElbow:-28, shoulderTwist:38,  headTilt:10,
+      backElbow:72, rearFootLift:16, guardY:2
     }, dur:5, sp:0.94 },
 
-    // Phase 4: FOLLOW-THROUGH — rotation continues past impact
+    // 5. FREEZE
     { p:{
-      upperLean:-20, lungeX:6, squash:0.96, upperY:-4, lowerSpread:4, hipX:10, frontElbow:72,
-      shoulderRot:-14, rearArmX:-4, rearArmY:2, headTiltX:3, headTiltY:1,
-      frontFootX:3, rearFootX:2, frontKnee:3, rearKnee:3, torsoTwist:-10
-    }, dur:5, sp:0.42 },
+      upperLean:36, lungeX:26, squash:0.88, upperY:8,  lowerSpread:5,
+      hipX:18,      frontElbow:-26, shoulderTwist:36,  headTilt:8,
+      backElbow:70, rearFootLift:12, guardY:1
+    }, dur:3, sp:0.96 },
 
-    // Phase 5: RETURN TO GUARD
+    // 6. RESET
     { p:{
-      upperLean:0, lungeX:0, squash:1, upperY:0, lowerSpread:0, hipX:0, frontElbow:48,
-      shoulderRot:0, rearArmX:0, rearArmY:0, headTiltX:0, headTiltY:0,
-      frontFootX:0, rearFootX:0, frontKnee:0, rearKnee:0, torsoTwist:0
+      upperLean:0,  lungeX:0,  squash:1,    upperY:0,  lowerSpread:0,
+      hipX:0,       frontElbow:48, shoulderTwist:0,   headTilt:0,
+      backElbow:55, rearFootLift:0, guardY:0
     }, dur:7, sp:0.25 },
   ],
 
-  // ═══════════════════════════════════════════════════════════════════════
-  //  UPPERCUT — Deep crouch → explosive upward fist
-  //  Reference: 3 poses showing dip → load → explosive rise
-  //  Real mechanics: Both knees bend DEEP, center of mass drops significantly.
-  //  Then legs extend explosively, driving fist upward in tight arc from waist
-  //  to chin level. Short range. Fighter may rise to toes at peak.
-  // ═══════════════════════════════════════════════════════════════════════
-  upcut: [
-    // Phase 1: DEEP DIP — knees bend, COM drops, fist drops to waist
-    //   Both legs compress. Body crouches. Head drops with body.
-    //   Rear hand stays up. Punching arm coils below for upward launch.
-    { p:{
-      upperLean:8, lungeX:0, squash:0.72, upperY:28, lowerSpread:14, hipX:-5, frontElbow:65,
-      shoulderRot:-4, rearArmX:4, rearArmY:10, headTiltX:0, headTiltY:8,
-      frontFootX:0, rearFootX:0, frontKnee:16, rearKnee:18, torsoTwist:-4
-    }, dur:5, sp:0.40 },
-
-    // Phase 2: SECONDARY LOAD — extra dip, arm drops lower
-    //   This is the "spring loading" moment. Maximum knee bend.
-    //   Fist is at its lowest point before exploding up.
-    { p:{
-      upperLean:6, lungeX:2, squash:0.68, upperY:32, lowerSpread:14, hipX:-3, frontElbow:58,
-      shoulderRot:-6, rearArmX:4, rearArmY:12, headTiltX:0, headTiltY:10,
-      frontFootX:1, rearFootX:1, frontKnee:18, rearKnee:20, torsoTwist:-5
-    }, dur:3, sp:0.55 },
-
-    // Phase 3: EXPLOSIVE DRIVE — legs extend, body rockets upward
-    //   Knees straighten explosively (frontKnee/rearKnee drop toward 0).
-    //   Squash goes to stretch. Hip drives upward. Fist rips from below.
-    //   Shoulder rotates to drive the upward arc.
-    { p:{
-      upperLean:-14, lungeX:6, squash:1.18, upperY:-4, lowerSpread:8, hipX:10, frontElbow:28,
-      shoulderRot:-10, rearArmX:2, rearArmY:6, headTiltX:0, headTiltY:-4,
-      frontFootX:3, rearFootX:3, frontKnee:4, rearKnee:4, torsoTwist:-8
-    }, dur:5, sp:0.85 },
-
-    // Phase 4: PEAK IMPACT — fist at maximum height, arm extended up
-    //   Body fully stretched. Fighter slightly on toes. Maximum upward force.
-    //   Head pulls back to avoid opponent. Devastating chin-level impact.
-    { p:{
-      upperLean:-26, lungeX:5, squash:1.14, upperY:-22, lowerSpread:7, hipX:12, frontElbow:14,
-      shoulderRot:-12, rearArmX:2, rearArmY:4, headTiltX:0, headTiltY:-6,
-      frontFootX:4, rearFootX:3, frontKnee:2, rearKnee:2, torsoTwist:-10
-    }, dur:4, sp:0.94 },
-
-    // Phase 5: RETRACT — fist comes down, body settles
-    { p:{
-      upperLean:-8, lungeX:2, squash:1.02, upperY:-6, lowerSpread:4, hipX:4, frontElbow:40,
-      shoulderRot:-4, rearArmX:1, rearArmY:2, headTiltX:0, headTiltY:-1,
-      frontFootX:1, rearFootX:1, frontKnee:2, rearKnee:2, torsoTwist:-3
-    }, dur:5, sp:0.38 },
-
-    // Phase 6: RETURN TO GUARD
-    { p:{
-      upperLean:0, lungeX:0, squash:1, upperY:0, lowerSpread:0, hipX:0, frontElbow:48,
-      shoulderRot:0, rearArmX:0, rearArmY:0, headTiltX:0, headTiltY:0,
-      frontFootX:0, rearFootX:0, frontKnee:0, rearKnee:0, torsoTwist:0
-    }, dur:6, sp:0.25 },
-  ],
-
-  // ═══════════════════════════════════════════════════════════════════════
-  //  OVERHAND — Looping over-the-top punch
-  // ═══════════════════════════════════════════════════════════════════════
-  overhand: [
-    // 1. Windup — rear hand lifts high, weight coils back
-    { p:{
-      upperLean:-8, lungeX:-4, squash:0.96, upperY:4, lowerSpread:5, hipX:-10, frontElbow:-22,
-      shoulderRot:-10, rearArmX:-4, rearArmY:-8, headTiltX:2, headTiltY:1,
-      frontFootX:-2, rearFootX:2, frontKnee:4, rearKnee:8, torsoTwist:-8
-    }, dur:5, sp:0.38 },
-    // 2. Arm rises up for the over-the-top arc
-    { p:{
-      upperLean:10, lungeX:10, squash:0.94, upperY:-10, lowerSpread:5, hipX:6, frontElbow:-28,
-      shoulderRot:12, rearArmX:4, rearArmY:6, headTiltX:-2, headTiltY:0,
-      frontFootX:4, rearFootX:4, frontKnee:4, rearKnee:4, torsoTwist:10
-    }, dur:4, sp:0.60 },
-    // 3. Over-the-top crash down
-    { p:{
-      upperLean:32, lungeX:24, squash:0.88, upperY:8, lowerSpread:6, hipX:16, frontElbow:-32,
-      shoulderRot:24, rearArmX:8, rearArmY:10, headTiltX:-4, headTiltY:5,
-      frontFootX:8, rearFootX:6, frontKnee:6, rearKnee:3, torsoTwist:18
-    }, dur:6, sp:0.80 },
-    // 4. Impact
-    { p:{
-      upperLean:36, lungeX:26, squash:0.86, upperY:10, lowerSpread:5, hipX:18, frontElbow:-28,
-      shoulderRot:26, rearArmX:8, rearArmY:10, headTiltX:-4, headTiltY:6,
-      frontFootX:8, rearFootX:6, frontKnee:5, rearKnee:2, torsoTwist:20
-    }, dur:5, sp:0.94 },
-    // 5. Return
-    { p:{
-      upperLean:0, lungeX:0, squash:1, upperY:0, lowerSpread:0, hipX:0, frontElbow:48,
-      shoulderRot:0, rearArmX:0, rearArmY:0, headTiltX:0, headTiltY:0,
-      frontFootX:0, rearFootX:0, frontKnee:0, rearKnee:0, torsoTwist:0
-    }, dur:8, sp:0.25 },
-  ],
-
-  // ═══════════════════════════════════════════════════════════════════════
-  //  BODY SHOT — Dip and dig low
-  // ═══════════════════════════════════════════════════════════════════════
+  // ─────────────────────────────────────────────────────────────────
+  //  BODY SHOT — Dip down and dig into the ribs/liver.
+  //  Real mechanics: Fighter crouches to get below opponent's
+  //  elbows, then drives fist into midsection.
+  // ─────────────────────────────────────────────────────────────────
   body: [
-    // 1. Dip — crouching toward the body
+    // 1. DIP — Crouch down, get below the elbows
     { p:{
-      upperLean:14, lungeX:4, squash:0.78, upperY:24, lowerSpread:8, hipX:4, frontElbow:32,
-      shoulderRot:8, rearArmX:2, rearArmY:10, headTiltX:-1, headTiltY:6,
-      frontFootX:2, rearFootX:0, frontKnee:12, rearKnee:10, torsoTwist:6
+      upperLean:12, lungeX:4,  squash:0.76, upperY:26, lowerSpread:8,
+      hipX:4,       frontElbow:34, shoulderTwist:8,   headTilt:8,
+      backElbow:52, rearFootLift:2, guardY:4
     }, dur:4, sp:0.45 },
-    // 2. Drive into the body
+
+    // 2. DIG — Drive fist into body, compact and mean
     { p:{
-      upperLean:34, lungeX:18, squash:0.82, upperY:18, lowerSpread:8, hipX:14, frontElbow:18,
-      shoulderRot:18, rearArmX:6, rearArmY:14, headTiltX:-2, headTiltY:8,
-      frontFootX:6, rearFootX:2, frontKnee:8, rearKnee:6, torsoTwist:14
+      upperLean:32, lungeX:18, squash:0.80, upperY:20, lowerSpread:8,
+      hipX:14,      frontElbow:16, shoulderTwist:22,  headTilt:12,
+      backElbow:50, rearFootLift:6, guardY:6
     }, dur:5, sp:0.85 },
-    // 3. Impact hold
+
+    // 3. IMPACT
     { p:{
-      upperLean:38, lungeX:20, squash:0.84, upperY:16, lowerSpread:7, hipX:14, frontElbow:20,
-      shoulderRot:20, rearArmX:6, rearArmY:14, headTiltX:-2, headTiltY:8,
-      frontFootX:6, rearFootX:2, frontKnee:7, rearKnee:5, torsoTwist:16
+      upperLean:38, lungeX:22, squash:0.82, upperY:18, lowerSpread:7,
+      hipX:16,      frontElbow:18, shoulderTwist:26,  headTilt:12,
+      backElbow:48, rearFootLift:6, guardY:6
     }, dur:4, sp:0.94 },
-    // 4. Return
+
+    // 4. RESET
     { p:{
-      upperLean:0, lungeX:0, squash:1, upperY:0, lowerSpread:0, hipX:0, frontElbow:48,
-      shoulderRot:0, rearArmX:0, rearArmY:0, headTiltX:0, headTiltY:0,
-      frontFootX:0, rearFootX:0, frontKnee:0, rearKnee:0, torsoTwist:0
+      upperLean:0,  lungeX:0,  squash:1,    upperY:0,  lowerSpread:0,
+      hipX:0,       frontElbow:48, shoulderTwist:0,   headTilt:0,
+      backElbow:55, rearFootLift:0, guardY:0
     }, dur:7, sp:0.25 },
   ],
 };
 
 
-// ── Smooth pose interpolation ──
 function lerpPose(cur, tgt, speed) {
   const out = {};
   for (const k in tgt) {
