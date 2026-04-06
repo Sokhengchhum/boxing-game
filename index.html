@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SuperPunch — Arcade Boxing Game</title>
+  <meta name="description" content="SuperPunch is a retro arcade boxing game with pixel-art fighters, dynamic combos, and knockout action. Play now in your browser!">
+  <link rel="stylesheet" href="landing.css">
+</head>
+<body>
+
+<!-- ═══════════════ NAVIGATION ═══════════════ -->
+<nav class="navbar" id="navbar">
+  <div class="nav-logo">
+    <span class="logo-icon">🥊</span> SUPER PUNCH
+  </div>
+  <div class="nav-links">
+    <a href="#features">FEATURES</a>
+    <a href="#roster">FIGHTERS</a>
+    <a href="#screenshots">SCREENSHOTS</a>
+    <a href="#controls">CONTROLS</a>
+    <a href="boxing.html" class="nav-cta">PLAY NOW</a>
+  </div>
+</nav>
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<section class="hero" id="hero">
+  <div class="hero-bg">
+    <img src="img/hero_banner.png" alt="SuperPunch Arena">
+  </div>
+
+  <!-- Floating particles -->
+  <div class="particle-field" id="particles"></div>
+
+  
+  <div class="hero-content">
+    <span class="hero-badge">⚡ ARCADE BOXING — BROWSER EDITION</span>
+    <h1 class="hero-title">
+      <span class="title-super">SUPER</span>
+      <span class="title-punch">PUNCH</span>
+    </h1>
+    <p class="hero-tagline">NO LUCK &mdash; PURE SKILL</p>
+    <div class="hero-actions">
+      <a href="boxing.html" class="btn-play" id="btn-play">🥊 PLAY NOW</a>
+      <a href="#features" class="btn-secondary">▼ LEARN MORE</a>
+    </div>
+  </div>
+
+  <div class="hero-scroll"><span></span></div>
+</section>
+
+<!-- ═══════════════ FEATURES ═══════════════ -->
+<section class="section" id="features">
+  <div class="section-header reveal">
+    <span class="section-tag">WHAT MAKES IT HIT DIFFERENT</span>
+    <h2 class="section-title">GAME FEATURES</h2>
+    <div class="glow-divider"></div>
+    <p class="section-sub">Fluid arcade combat with deep mechanics, procedural audio, and a full roster of unique fighters.</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card reveal">
+      <span class="feature-icon">👊</span>
+      <h3>10+ ATTACK TYPES</h3>
+      <p>Jab, Cross, Hook, Uppercut, Overhand, Body Shot, Dash Strike, High Kick, Super Punch, and devastating Combos — each with unique animations and damage profiles.</p>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">🎨</span>
+      <h3>PIXEL-ART FIGHTERS</h3>
+      <p>Hand-crafted, high-fidelity sprite characters with full-body procedural animation — articulated joints, motion trails, and physics-driven knockback.</p>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">⚡</span>
+      <h3>SUPER METER SYSTEM</h3>
+      <p>Build your Super gauge through offensive combat. Unleash devastating Super Punches with screen-shaking impact, slow-mo, and lightning VFX.</p>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">🤖</span>
+      <h3>SMART CPU AI</h3>
+      <p>4 difficulty tiers from Easy to Boss. The AI blocks, slips, ducks, pulls, and chains combos with reactive fight IQ that adapts to your style.</p>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">🔊</span>
+      <h3>PROCEDURAL AUDIO</h3>
+      <p>Every punch, block, and dodge generates real-time sound effects via Web Audio API. Dynamic crowd ambience and beat-driven arena music — zero audio files.</p>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">🎮</span>
+      <h3>2P LOCAL VERSUS</h3>
+      <p>Challenge a friend on the same keyboard with full dual-control support. Customize fighter colors and battle head-to-head in a best-of-3 match.</p>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">🛡️</span>
+      <h3>DEFENSIVE DEPTH</h3>
+      <p>Block, Slip, Duck, and Pull — each defensive move counters specific attacks. Guard Breaks punish passive play. Timing is everything.</p>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">📱</span>
+      <h3>MOBILE READY</h3>
+      <p>Full touch controls with a virtual D-pad and action buttons. Play on any device with a modern browser — no install required.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ SCREENSHOTS ═══════════════ -->
+<section class="section" id="screenshots">
+  <div class="section-header reveal">
+    <span class="section-tag">SEE IT IN ACTION</span>
+    <h2 class="section-title">SCREENSHOTS</h2>
+    <div class="glow-divider"></div>
+  </div>
+  <div class="screenshots-container">
+    <div class="screenshot-frame reveal">
+      <img src="img/screenshot_selection.png" alt="Character Selection Screen" loading="lazy">
+      <div class="screenshot-label">CHARACTER SELECTION</div>
+    </div>
+    <div class="screenshot-frame reveal">
+      <img src="img/screenshot_gameplay.png" alt="Gameplay Action" loading="lazy">
+      <div class="screenshot-label">IN-RING ACTION</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ FIGHTER ROSTER ═══════════════ -->
+<section class="section" id="roster">
+  <div class="section-header reveal">
+    <span class="section-tag">CHOOSE YOUR BRO</span>
+    <h2 class="section-title">FIGHTER ROSTER</h2>
+    <div class="glow-divider"></div>
+    <p class="section-sub">4 unique fighters with distinct stats and fighting styles. More on the way.</p>
+  </div>
+  <div class="roster-grid">
+
+    <!-- BARRERA -->
+    <div class="roster-card reveal">
+      <img src="img/barrera.png" alt="Barrera" class="roster-img" loading="lazy">
+      <div class="roster-info">
+        <div class="roster-name">BARRERA</div>
+        <div class="roster-archetype">SLUGGER</div>
+        <div class="stat-bar-container">
+          <div class="stat-row"><span class="stat-label">WEIGHT</span><div class="stat-track"><div class="stat-fill red" style="width:80%"></div></div></div>
+          <div class="stat-row"><span class="stat-label">SPEED</span><div class="stat-track"><div class="stat-fill blue" style="width:60%"></div></div></div>
+          <div class="stat-row"><span class="stat-label">DEFENSE</span><div class="stat-track"><div class="stat-fill red" style="width:80%"></div></div></div>
+          <div class="stat-row"><span class="stat-label">RECOVER</span><div class="stat-track"><div class="stat-fill blue" style="width:60%"></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- JACKSON -->
+    <div class="roster-card reveal">
+      <img src="img/jackson.png" alt="Jackson" class="roster-img" loading="lazy">
+      <div class="roster-info">
+        <div class="roster-name">JACKSON</div>
+        <div class="roster-archetype">SPEEDSTER</div>
+        <div class="stat-bar-container">
+          <div class="stat-row"><span class="stat-label">WEIGHT</span><div class="stat-track"><div class="stat-fill red" style="width:60%"></div></div></div>
+          <div class="stat-row"><span class="stat-label">SPEED</span><div class="stat-track"><div class="stat-fill blue" style="width:100%"></div></div></div>
+          <div class="stat-row"><span class="stat-label">DEFENSE</span><div class="stat-track"><div class="stat-fill red" style="width:60%"></div></div></div>
+          <div class="stat-row"><span class="stat-label">RECOVER</span><div class="stat-track"><div class="stat-fill blue" style="width:60%"></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SANTOS -->
+    <div class="roster-card reveal">
+      <img src="img/santos.png" alt="Santos" class="roster-img" loading="lazy">
+      <div class="roster-info">
+        <div class="roster-name">SANTOS</div>
+        <div class="roster-archetype">ALL-ROUNDER</div>
+        <div class="stat-bar-container">
+          <div class="stat-row"><span class="stat-label">WEIGHT</span><div class="stat-track"><div class="stat-fill red" style="width:60%"></div></div></div>
+          <div class="stat-row"><span class="stat-label">SPEED</span><div class="stat-track"><div class="stat-fill blue" style="width:80%"></div></div></div>
+          <div class="stat-row"><span class="stat-label">DEFENSE</span><div class="stat-track"><div class="stat-fill red" style="width:60%"></div></div></div>
+          <div class="stat-row"><span class="stat-label">RECOVER</span><div class="stat-track"><div class="stat-fill blue" style="width:80%"></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TITAN -->
+    <div class="roster-card reveal">
+      <img src="img/titan.png" alt="Titan" class="roster-img" loading="lazy">
+      <div class="roster-info">
+        <div class="roster-name">TITAN</div>
+        <div class="roster-archetype">TANK</div>
+        <div class="stat-bar-container">
+          <div class="stat-row"><span class="stat-label">WEIGHT</span><div class="stat-track"><div class="stat-fill red" style="width:100%"></div></div></div>
+          <div class="stat-row"><span class="stat-label">SPEED</span><div class="stat-track"><div class="stat-fill blue" style="width:20%"></div></div></div>
+          <div class="stat-row"><span class="stat-label">DEFENSE</span><div class="stat-track"><div class="stat-fill red" style="width:100%"></div></div></div>
+          <div class="stat-row"><span class="stat-label">RECOVER</span><div class="stat-track"><div class="stat-fill blue" style="width:100%"></div></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════ CONTROLS ═══════════════ -->
+<section class="section" id="controls">
+  <div class="section-header reveal">
+    <span class="section-tag">MASTER THE RING</span>
+    <h2 class="section-title">CONTROLS</h2>
+    <div class="glow-divider"></div>
+  </div>
+  <div class="controls-layout">
+
+    <!-- Player 1 -->
+    <div class="controls-panel reveal">
+      <h3><span class="panel-accent">🔴</span> PLAYER 1</h3>
+      <div class="key-grid">
+        <span class="key">A / D</span>  <span class="key-desc">Move Left / Right</span>
+        <span class="key">W</span>      <span class="key-desc">Jump</span>
+        <span class="key">S</span>      <span class="key-desc">Pull (Lean Back)</span>
+        <span class="key">Q</span>      <span class="key-desc">Slip</span>
+        <span class="key">Z</span>      <span class="key-desc">Duck</span>
+        <span class="key">R</span>      <span class="key-desc">Block</span>
+        <span class="key">F</span>      <span class="key-desc">Jab</span>
+        <span class="key">G</span>      <span class="key-desc">Cross</span>
+        <span class="key">T</span>      <span class="key-desc">Uppercut</span>
+        <span class="key">E</span>      <span class="key-desc">Overhand</span>
+        <span class="key">C</span>      <span class="key-desc">Body Shot</span>
+        <span class="key">B</span>      <span class="key-desc">Hook</span>
+        <span class="key">H</span>      <span class="key-desc">Kick</span>
+        <span class="key">X</span>      <span class="key-desc">Dash Strike</span>
+        <span class="key">V</span>      <span class="key-desc">⚡ Super Punch</span>
+      </div>
+    </div>
+
+    <!-- Player 2 -->
+    <div class="controls-panel reveal">
+      <h3><span class="panel-accent" style="color:var(--accent-blue)">🔵</span> PLAYER 2</h3>
+      <div class="key-grid">
+        <span class="key">← / →</span>  <span class="key-desc">Move Left / Right</span>
+        <span class="key">↑</span>      <span class="key-desc">Jump</span>
+        <span class="key">↓</span>      <span class="key-desc">Pull (Lean Back)</span>
+        <span class="key">P</span>      <span class="key-desc">Slip</span>
+        <span class="key">M</span>      <span class="key-desc">Duck</span>
+        <span class="key">O</span>      <span class="key-desc">Block</span>
+        <span class="key">K</span>      <span class="key-desc">Jab</span>
+        <span class="key">L</span>      <span class="key-desc">Cross</span>
+        <span class="key">I</span>      <span class="key-desc">Uppercut</span>
+        <span class="key">U</span>      <span class="key-desc">Overhand</span>
+        <span class="key">,</span>      <span class="key-desc">Body Shot</span>
+        <span class="key">J</span>      <span class="key-desc">Hook</span>
+        <span class="key">/</span>      <span class="key-desc">Kick</span>
+        <span class="key">N</span>      <span class="key-desc">Dash Strike</span>
+        <span class="key">;</span>      <span class="key-desc">⚡ Super Punch</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════ CTA ═══════════════ -->
+<section class="cta-section" id="cta">
+  <div class="particle-field" id="particles2"></div>
+  <h2 class="cta-title reveal">READY TO FIGHT?</h2>
+  <p class="cta-sub reveal">Step into the ring. No download. No signup. Just hands.</p>
+  <a href="boxing.html" class="btn-play reveal">🥊 ENTER THE RING</a>
+</section>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<footer class="footer">
+  <div class="footer-logo">🥊 SUPER PUNCH</div>
+  <div class="footer-links">
+    <a href="#features">Features</a>
+    <a href="#roster">Fighters</a>
+    <a href="#controls">Controls</a>
+    <a href="boxing.html">Play</a>
+  </div>
+  <div>Built with ❤️ and Canvas — 2026</div>
+</footer>
+
+<!-- ═══════════════ SCRIPTS ═══════════════ -->
+<script>
+// ── Scroll Reveal ──
+const reveals = document.querySelectorAll('.reveal');
+const revealObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      revealObs.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.12 });
+reveals.forEach(el => revealObs.observe(el));
+
+// ── Navbar bg on scroll ──
+window.addEventListener('scroll', () => {
+  const nav = document.getElementById('navbar');
+  nav.style.background = window.scrollY > 60
+    ? 'rgba(3,8,21,0.95)'
+    : 'rgba(3,8,21,0.85)';
+});
+
+// ── Floating Particles ──
+function spawnParticles(containerId, count) {
+  const field = document.getElementById(containerId);
+  if (!field) return;
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.classList.add('particle');
+    p.style.left = Math.random() * 100 + '%';
+    p.style.bottom = -(Math.random() * 20) + '%';
+    p.style.width = p.style.height = (2 + Math.random() * 4) + 'px';
+    p.style.animationDuration = (8 + Math.random() * 16) + 's';
+    p.style.animationDelay = Math.random() * 12 + 's';
+    const colors = [
+      'rgba(255,170,0,0.3)',
+      'rgba(200,16,46,0.25)',
+      'rgba(0,229,255,0.2)',
+      'rgba(255,255,255,0.15)'
+    ];
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    field.appendChild(p);
+  }
+}
+spawnParticles('particles', 30);
+spawnParticles('particles2', 18);
+
+// ── Smooth anchor scroll ──
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) {
+      e.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+
+// ── Stat bars animate on scroll ──
+const statFills = document.querySelectorAll('.stat-fill');
+const statObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const target = e.target;
+      const w = target.style.width;
+      target.style.width = '0%';
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          target.style.width = w;
+        });
+      });
+      statObs.unobserve(target);
+    }
+  });
+}, { threshold: 0.5 });
+statFills.forEach(el => statObs.observe(el));
+</script>
+
+</body>
+</html>

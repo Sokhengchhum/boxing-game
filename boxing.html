@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SuperPunch</title>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Barlow+Condensed:ital,wght@0,400;0,700;0,900;1,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="boxing.css?v=2">
+</head>
+<body>
+<div id="game-container">
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- VS Intro Overlay -->
+  <div id="vs-intro">
+    <div class="vi-bg"></div>
+    <div class="vi-scanlines"></div>
+    <div class="vi-divider"></div>
+    <div class="vi-round-label" id="vi-round-lbl">ROUND 1 &nbsp;&bull;&nbsp; 3 ROUNDS</div>
+    <div class="vi-fighter left" id="vi-f1">
+      <canvas class="vi-portrait" id="vi-port1" width="180" height="200"></canvas>
+      <div class="vi-name" id="vi-name1">FIGHTER 1</div>
+      <div class="vi-archetype" id="vi-arch1">Balanced</div>
+      <div class="vi-stat-bar" id="vi-pips1"></div>
+    </div>
+    <div class="vi-fighter right" id="vi-f2">
+      <canvas class="vi-portrait" id="vi-port2" width="180" height="200"></canvas>
+      <div class="vi-name" id="vi-name2">FIGHTER 2</div>
+      <div class="vi-archetype" id="vi-arch2">Brawler</div>
+      <div class="vi-stat-bar" id="vi-pips2"></div>
+    </div>
+    <div class="vi-vs" id="vi-vs">VS</div>
+    <div class="vi-countdown" id="vi-count"></div>
+    <div class="vi-fight-text" id="vi-fight">FIGHT!</div>
+  </div>
+
+  <div id="ui-overlay">
+    <div id="damage-vignette"></div>
+    <div class="hud-top">
+      <!-- P1 -->
+      <div class="fighter-hud">
+        <div class="portrait-wrap p1-port" id="p1head"><span>&#129338;</span><div class="port-glow"></div></div>
+        <div class="bars-container">
+          <div class="name-score-row">
+            <div class="fighter-name" id="p1name">BARRERA</div>
+            <div class="win-stars" id="p1score"></div>
+          </div>
+          <div class="bar-track"><div class="hp-fill" id="p1hp" style="width:100%"></div></div>
+          <div class="stam-track"><div class="stamina-fill" id="p1st" style="width:100%"></div></div>
+          <div class="super-track"><div class="super-fill-ui" id="p1superui" style="width:0%"></div></div>
+        </div>
+      </div>
+      <!-- Center -->
+      <div class="center-hud">
+        <div class="vs-badge">VS</div>
+        <div class="round-timer" id="roundTimer">99</div>
+        <div class="round-label" id="roundNum">ROUND 1</div>
+      </div>
+      <!-- P2 -->
+      <div class="fighter-hud right">
+        <div class="portrait-wrap p2-port" id="p2head"><span>&#129337;</span><div class="port-glow"></div></div>
+        <div class="bars-container">
+          <div class="name-score-row">
+            <div class="fighter-name" id="p2name">MUNGUÍA</div>
+            <div class="win-stars" id="p2score"></div>
+          </div>
+          <div class="bar-track"><div class="hp-fill" id="p2hp" style="width:100%"></div></div>
+          <div class="stam-track"><div class="stamina-fill" id="p2st" style="width:100%"></div></div>
+          <div class="super-track"><div class="super-fill-ui" id="p2superui" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+    <!-- Move banner and tagline -->
+    <div id="move-banner"></div>
+    <div id="tagline-bar">NO LUCK &nbsp;&#8212;&nbsp; PURE SKILL</div>
+  </div>
+  <div id="announce"></div>
+  <div id="mobile-controls">
+    <div id="dpad-zone">
+      <div class="d-btn" id="t-left" style="left:5px;top:48px;">&#9664;</div>
+      <div class="d-btn" id="t-right" style="right:5px;top:48px;">&#9654;</div>
+      <div class="d-btn" id="t-up" style="left:48px;top:5px;">&#9650;</div>
+      <div style="position:absolute;left:55px;top:55px;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,0.2);"></div>
+    </div>
+    <div class="touch-btn shield-btn" id="t-block">BLK</div>
+    <div class="touch-btn pull-btn" id="t-pull">PUL</div>
+    <div class="touch-btn slip-btn" id="t-slip">SLP</div>
+    <div class="touch-btn duck-btn" id="t-duck">DCK</div>
+    <div class="touch-btn super-btn" id="t-super">&#129306;</div>
+    <div class="touch-btn jab-btn" id="t-jab">JAB</div>
+    <div class="touch-btn cross-btn" id="t-cross">CRS</div>
+    <div class="touch-btn upcut-btn" id="t-upcut">UPC</div>
+    <div class="touch-btn over-btn" id="t-over">OVR</div>
+    <div class="touch-btn body-btn" id="t-body">BDY</div>
+    <div class="touch-btn jump-btn" id="t-jump">&#11014;</div>
+    <div class="touch-btn kick-btn" id="t-kick" style="background:#ff0033;">KCK</div>
+    <div class="touch-btn combo-btn" id="t-combo" style="background:#ff0055;">CMB</div>
+  </div>
+  <div id="start-screen">
+    <canvas id="ws-crowd-bg"></canvas>
+
+    <!-- Retro Header -->
+    <div class="ws-header">CHOOSE YOUR BRO</div>
+
+    <!-- Character Selection Grid -->
+    <div class="ws-grid-container">
+      <div id="ws-grid"></div>
+    </div>
+
+    <!-- 3-Column Bottom Layout -->
+    <div class="ws-bottom">
+      
+      <!-- LEFT: Stats Panel -->
+      <div class="ws-col ws-stats-col">
+        <div id="ws-char-name">SELECT</div>
+
+        <div class="ws-stat-row">
+          <div class="ws-stat-label">WEIGHT</div>
+          <div class="ws-stat-bar-bg" id="ws-stat-weight"></div>
+        </div>
+        <div class="ws-stat-row">
+          <div class="ws-stat-label">HEIGHT</div>
+          <div class="ws-stat-bar-bg" id="ws-stat-height"></div>
+        </div>
+        <div class="ws-stat-row">
+          <div class="ws-stat-label">FLYING</div>
+          <div class="ws-stat-bar-bg" id="ws-stat-flying"></div>
+        </div>
+        <div class="ws-stat-row">
+          <div class="ws-stat-label">SPEED</div>
+          <div class="ws-stat-bar-bg" id="ws-stat-speed"></div>
+        </div>
+        <div class="ws-stat-row">
+          <div class="ws-stat-label">RECOVERY</div>
+          <div class="ws-stat-bar-bg" id="ws-stat-recovery"></div>
+        </div>
+        <div class="ws-stat-row">
+          <div class="ws-stat-label">DEFENSE</div>
+          <div class="ws-stat-bar-bg" id="ws-stat-defense"></div>
+        </div>
+      </div>
+
+      <!-- CENTER: Live Ring Preview -->
+      <div class="ws-col ws-stage-col">
+        <canvas id="ws-preview-canvas" width="320" height="300"></canvas>
+      </div>
+
+      <!-- RIGHT: Controls -->
+      <div class="ws-col ws-ctrl-col">
+        
+        <!-- Clothing Icons -->
+        <div class="ws-clothing-menu">
+          <div class="ws-cloth-icon active">👕</div>
+          <div class="ws-cloth-icon">👖</div>
+          <div class="ws-cloth-icon">🧤</div>
+          <div class="ws-cloth-icon">👟</div>
+        </div>
+
+        <!-- Color Palette - row 1: colors -->
+        <div class="ws-color-palette">
+          <div class="ws-pal-row">
+            <div class="ws-color-square" style="background:#fff;"></div>
+            <div class="ws-color-square" style="background:#e53935;"></div>
+            <div class="ws-color-square" style="background:#ff9800;"></div>
+            <div class="ws-color-square" style="background:#ffeb3b;"></div>
+            <div class="ws-color-square" style="background:#00e5ff;"></div>
+            <div class="ws-color-square" style="background:#00c853;"></div>
+            <div class="ws-color-square" style="background:#e040fb;"></div>
+            <div class="ws-color-square" style="background:#ff80ab;"></div>
+            <div class="ws-color-square" style="background:#888;"></div>
+            <div class="ws-color-square" style="background:#444;"></div>
+          </div>
+          <!-- Row 2: star ratings -->
+          <div class="ws-pal-row">
+            <span class="ws-star" style="color:#e53935">★</span>
+            <span class="ws-star" style="color:#00e5ff">★</span>
+            <span class="ws-star" style="color:#00c853">★</span>
+            <span class="ws-star" style="color:#fff">★</span>
+            <span class="ws-star" style="color:#e040fb">★</span>
+            <span class="ws-star" style="color:#ffeb3b">★</span>
+            <span class="ws-star" style="color:#ff80ab">★</span>
+            <span class="ws-star" style="color:#888">★</span>
+            <span class="ws-star" style="color:#555">★</span>
+            <span class="ws-star" style="color:#333">★</span>
+          </div>
+        </div>
+        
+        <div class="ws-mode-group">
+          <button class="ws-tiny-btn active" id="btn2p" onclick="setMode('2p')">2P</button>
+          <button class="ws-tiny-btn" id="btn1p" onclick="setMode('1p')">CPU</button>
+        </div>
+        
+        <div id="diff-section" style="display:none; margin-bottom:4px;">
+          <button class="ws-tiny-btn active" id="dEasy" onclick="setDiff('easy')">EZ</button>
+          <button class="ws-tiny-btn" id="dMedium" onclick="setDiff('medium')">MD</button>
+          <button class="ws-tiny-btn" id="dHard" onclick="setDiff('hard')">HD</button>
+        </div>
+
+        <button class="ws-ready-btn" id="startBtn">READY!</button>
+      </div>
+
+    </div>
+  </div>
+
+
+</div>
+
+</div>
+<!-- 🔊 Mute toggle button -->
+<button id="mute-btn" title="Toggle Sound" onclick="toggleMute()">🔊</button>
+<script src="animations.js?v=1"></script>
+<script src="boxing.js?v=17"></script>
+</body>
+</html>
