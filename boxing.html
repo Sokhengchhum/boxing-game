@@ -11,6 +11,19 @@
 <div id="game-container">
   <canvas id="gameCanvas"></canvas>
 
+  <!-- Controls Hint Overlay -->
+  <div id="controls-hint" style="position:absolute; bottom:5px; width:100%; display:flex; justify-content:space-between; padding:0 20px; box-sizing:border-box; color:rgba(255,255,255,0.6); font-family:monospace; font-size:11px; pointer-events:none; z-index:100; text-shadow: 1px 1px 0px #000;">
+    <div>[P1] MOVE: WASD | ATK: F,G,T,E,C | BLK: R | DASH: X | SUPER: V</div>
+    <div>[P2] MOVE: ARROWS | ATK: K,L,I,U,, | BLK: O | DASH: N | SUPER: ;</div>
+  </div>
+
+  <!-- Pause Overlay -->
+  <div id="pause-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:5000; flex-direction:column; align-items:center; justify-content:center; color:#fff; font-family:'Black Han Sans', sans-serif;">
+    <h1 style="font-size:56px; color:#ffaa00; letter-spacing:8px; margin-bottom:10px; text-shadow:4px 4px 0px #000;">PAUSED</h1>
+    <div id="pause-timer" style="font-size:24px; color:#ff4444; margin-bottom:30px; display:none; letter-spacing:1px; text-shadow:2px 2px 0px #000;">AUTO RESUMING IN: <span id="pause-timer-val">30</span></div>
+    <div style="font-size:18px; color:#aaa; letter-spacing:2px; animation:pulseText 1.5s infinite alternate;">PRESS [ESC] TO RESUME</div>
+  </div>
+
   <!-- VS Intro Overlay -->
   <div id="vs-intro">
     <div class="vi-bg"></div>
@@ -107,30 +120,28 @@
         <div class="mode-desc">VS CPU ARCADE MODE</div>
       </div>
       <div class="mode-card" onclick="selectModeAndContinue('2p')">
-        <div class="mode-icon">👥</div>
-        <div class="mode-title">TWO PLAYERS</div>
-        <div class="mode-desc">LOCAL VERSUS BATTLE</div>
+        <div class="mode-icon">🌐</div>
+        <div class="mode-title">ONLINE MODE</div>
+        <div class="mode-desc">MATCHMAKING BATTLE</div>
       </div>
     </div>
+  </div>
+
+  <!-- Matchmaking Overlay -->
+  <div id="matchmaking-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">
+    <div class="ws-loader-spinner"></div>
+    <div style="color:#fff; font-family:'Black Han Sans', sans-serif; font-size: 24px; margin-top:20px; letter-spacing:2px; animation:pulseText 1s infinite alternate;">SEARCHING FOR OPPONENT...</div>
   </div>
 
   <div id="start-screen" style="display:none;">
     <canvas id="ws-crowd-bg"></canvas>
 
-    <!-- Retro Header -->
-    <div class="ws-header">CHOOSE YOUR FIGHTER</div>
-    <div id="ws-prompt" class="ws-prompt">PLAYER 1 — SELECT YOUR FIGHTER</div>
-
-    <!-- Character Selection Grid -->
-    <div class="ws-grid-container">
-      <div id="ws-grid"></div>
-    </div>
-
-    <!-- Two-Section Selection Layout -->
+    <!-- Three-Column Layout -->
     <div class="ws-selection-layout">
       
-      <!-- PLAYER 1 SECTION -->
+      <!-- PLAYER 1 SECTION (Left) -->
       <div class="ws-player-section ws-p1-area" id="ws-p1-section">
+        <canvas id="ws-p1-canvas" width="160" height="220" class="ws-side-canvas"></canvas>
         <div class="ws-player-status choosing" id="ws-p1-status">CHOOSING</div>
         <div class="ws-side-header p1-label">PLAYER 1</div>
         <div id="ws-p1-name" class="ws-name-display">SELECT</div>
@@ -144,18 +155,68 @@
         </div>
       </div>
 
-      <!-- CENTER PREVIEW & GRID -->
+      <!-- CENTER SECTION (Header -> Grid -> Canvas & Controls) -->
       <div class="ws-center-section">
+        <div style="display:flex; align-items:center; justify-content:center; gap:16px;">
+          <div id="ws-sel-timer" class="ws-sel-timer" style="display:none;">30</div>
+          <div class="ws-header" style="margin:0;">CHOOSE YOUR FIGHTER</div>
+        </div>
+        <div id="ws-prompt" class="ws-prompt">PLAYER 1 — SELECT YOUR FIGHTER</div>
+        
+        <!-- Character Selection Grid -->
         <div class="ws-grid-container">
           <div id="ws-grid"></div>
         </div>
+
+        <!-- CENTER PREVIEW -->
         <div class="ws-stage-container">
-          <canvas id="ws-preview-canvas" width="360" height="260"></canvas>
+          
+          <!-- Controls Overlay -->
+          <div class="ws-lower-controls">
+            <div class="ws-ctrl-col">
+              <!-- <div class="ws-clothing-menu">
+                <div class="ws-cloth-icon active">👕</div>
+                <div class="ws-cloth-icon">👖</div>
+                <div class="ws-cloth-icon">🧤</div>
+                <div class="ws-cloth-icon">👟</div>
+              </div> -->
+              <div class="ws-color-palette">
+                <div class="ws-pal-row">
+                  <div class="ws-color-square" style="background:#fff;"></div>
+                  <div class="ws-color-square" style="background:#e53935;"></div>
+                  <div class="ws-color-square" style="background:#ff9800;"></div>
+                  <div class="ws-color-square" style="background:#ffeb3b;"></div>
+                  <div class="ws-color-square" style="background:#00e5ff;"></div>
+                  <div class="ws-color-square" style="background:#00c853;"></div>
+                  <div class="ws-color-square" style="background:#e040fb;"></div>
+                  <div class="ws-color-square" style="background:#ff80ab;"></div>
+                  <div class="ws-color-square" style="background:#888;"></div>
+                  <div class="ws-color-square" style="background:#444;"></div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="ws-action-area">
+              <div class="ws-mode-group" style="margin-bottom:4px;">
+                <button class="ws-tiny-btn" onclick="pickRandomChar()" style="width:100%">RANDOM SELECT</button>
+              </div>
+              <div id="diff-section" style="display:none; margin-bottom:4px;">
+                <button class="ws-tiny-btn active" id="dEasy" onclick="setDiff('easy')">EZ</button>
+                <button class="ws-tiny-btn" id="dMedium" onclick="setDiff('medium')">MD</button>
+                <button class="ws-tiny-btn" id="dHard" onclick="setDiff('hard')">HD</button>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button class="ws-back-btn" id="backBtn" onclick="goBackStage()">BACK</button>
+                <button class="ws-ready-btn" id="startBtn">READY!</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- PLAYER 2 SECTION -->
+      <!-- PLAYER 2 SECTION (Right) -->
       <div class="ws-player-section ws-p2-area" id="ws-p2-section">
+        <canvas id="ws-p2-canvas" width="160" height="220" class="ws-side-canvas"></canvas>
         <div class="ws-player-status" id="ws-p2-status">WAITING...</div>
         <div class="ws-side-header p2-label">PLAYER 2</div>
         <div id="ws-p2-name" class="ws-name-display">SELECT</div>
@@ -170,45 +231,6 @@
       </div>
 
     </div>
-
-    <!-- Controls & Actions (Floating/Bottom) -->
-    <div class="ws-lower-controls">
-      <div class="ws-ctrl-col">
-        <div class="ws-clothing-menu">
-          <div class="ws-cloth-icon active">👕</div>
-          <div class="ws-cloth-icon">👖</div>
-          <div class="ws-cloth-icon">🧤</div>
-          <div class="ws-cloth-icon">👟</div>
-        </div>
-        <div class="ws-color-palette">
-          <div class="ws-pal-row">
-            <div class="ws-color-square" style="background:#fff;"></div>
-            <div class="ws-color-square" style="background:#e53935;"></div>
-            <div class="ws-color-square" style="background:#ff9800;"></div>
-            <div class="ws-color-square" style="background:#ffeb3b;"></div>
-            <div class="ws-color-square" style="background:#00e5ff;"></div>
-            <div class="ws-color-square" style="background:#00c853;"></div>
-            <div class="ws-color-square" style="background:#e040fb;"></div>
-            <div class="ws-color-square" style="background:#ff80ab;"></div>
-            <div class="ws-color-square" style="background:#888;"></div>
-            <div class="ws-color-square" style="background:#444;"></div>
-          </div>
-        </div>
-      </div>
-      
-      <div class="ws-action-area">
-        <div class="ws-mode-group">
-          <button class="ws-tiny-btn active" id="btn2p" onclick="setMode('2p')">2P</button>
-          <button class="ws-tiny-btn" id="btn1p" onclick="setMode('1p')">CPU</button>
-        </div>
-        <div id="diff-section" style="display:none; margin-bottom:4px;">
-          <button class="ws-tiny-btn active" id="dEasy" onclick="setDiff('easy')">EZ</button>
-          <button class="ws-tiny-btn" id="dMedium" onclick="setDiff('medium')">MD</button>
-          <button class="ws-tiny-btn" id="dHard" onclick="setDiff('hard')">HD</button>
-        </div>
-        <button class="ws-ready-btn" id="startBtn">READY!</button>
-      </div>
-    </div>
   </div>
 
 
@@ -218,6 +240,12 @@
 <!-- 🔊 Mute toggle button -->
 <button id="mute-btn" title="Toggle Sound" onclick="toggleMute()">🔊</button>
 <script src="animations.js?v=1"></script>
-<script src="boxing.js?v=17"></script>
+<script src="js/globals.js"></script>
+<script src="js/logic/cpu.js"></script>
+<script src="js/logic/fighter.js"></script>
+<script src="js/ui/vfx.js"></script>
+<script src="js/ui/ui.js"></script>
+<script src="js/logic/game.js"></script>
+<script src="js/ui/sfx.js"></script>
 </body>
 </html>
