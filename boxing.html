@@ -247,5 +247,11 @@
 <script src="js/ui/ui.js"></script>
 <script src="js/logic/game.js"></script>
 <script src="js/ui/sfx.js"></script>
+<script src="js/auth.js"></script>
+<script>
+  if (!Auth.getUser()) {
+    window.location.href = 'index.html';
+  }
+</script>
 </body>
 </html>
