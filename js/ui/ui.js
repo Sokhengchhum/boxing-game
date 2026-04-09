@@ -13,12 +13,32 @@ function drawMiniPortrait(canvas, r, isLeft) {
   gl.addColorStop(0,'rgba(200,100,50,0.12)'); gl.addColorStop(1,'transparent');
   c.fillStyle=gl; c.fillRect(0,0,W,H);
 
-  const img = SPRITES[r.id];
-  if(img && img.complete && img.naturalWidth > 0) {
-      // Draw upper body for portrait
-      const sx = img.naturalWidth * 0.1;
+  const data = SPRITES[r.id];
+  if(!data) return;
+
+  let img = null;
+  let isSheet = false;
+  if (data.type === 'folder' && data.loadedFrames > 0) {
+      const img = data.frames['idle'] || data.frames['punch'];
+      if(!img) return;
+      const sh = img.naturalHeight * 0.45;
+      c.save();
+      if(!isLeft) { c.translate(W, 0); c.scale(-1, 1); }
+      c.drawImage(img, img.naturalWidth*0.1, 0, img.naturalWidth*0.8, sh, 0, 0, W, H);
+      c.restore();
+  } else if (data.type === 'sheet' && data.img && data.img.complete && data.img.naturalWidth > 0) {
+      const img = data.img;
+      const isSheet = img.naturalWidth > img.naturalHeight * 1.5;
+      let frameW = img.naturalWidth;
+      let sx = img.naturalWidth * 0.1;
+      
+      if (isSheet) {
+          frameW = img.naturalWidth / 6;
+          sx = frameW * 1 + frameW * 0.1; // 2nd frame (idle), plus 10% crop
+      }
+      
       const sy = 0;
-      const sw = img.naturalWidth * 0.8;
+      const sw = frameW * 0.8;
       const sh = img.naturalHeight * 0.45;
       
       c.save();
@@ -116,9 +136,23 @@ function drawHeadOnly(canvas, r) {
     return;
   }
 
-  // Try to draw the real sprite image
-  const img = SPRITES[r.id];
-  if(img && img.complete && img.naturalWidth > 0) {
+  const data = SPRITES[r.id];
+  if(!data) return;
+
+  if (data.type === 'folder' && data.loadedFrames > 0) {
+    const img = data.frames['idle'] || data.frames['punch'];
+    if(!img) return;
+    const sW = img.naturalWidth, sH = img.naturalHeight;
+    const drawH = H * 0.98;
+    const drawW = (sW/sH) * drawH;
+    c.drawImage(img, 0, 0, sW, sH, W/2 - drawW/2, H - drawH, drawW, drawH);
+    return;
+  }
+  
+  if (data.type !== 'sheet' || !data.img) return;
+  const img = data.img;
+  
+  if(img.complete && img.naturalWidth > 0) {
     const isSheet = img.naturalWidth > img.naturalHeight * 1.5;
     let sW = img.naturalWidth, sH = img.naturalHeight;
     let sx = 0;
@@ -327,15 +361,25 @@ function drawPreviewStage() {
       c.fillStyle='rgba(255,255,255,0.05)';
       c.beginPath(); c.ellipse(W/2, H*0.85, W*0.25, 8, 0, 0, Math.PI*2); c.fill();
 
-      const img = SPRITES[r.id];
+      const data = SPRITES[r.id];
+      if(!data) return;
+
+      let img = null;
+      let sx = 0, sy = 0, sW = 0, sH = 0;
+      
+      if (data.type === 'folder' && data.loadedFrames > 0) {
+          img = data.frames['idle'] || data.frames['punch'];
+          if (img) { sW = img.naturalWidth; sH = img.naturalHeight; }
+      } else if (data.type === 'sheet' && data.img && data.img.complete && data.img.naturalWidth > 0) {
+          img = data.img;
+          sW = img.naturalWidth; sH = img.naturalHeight;
+          if (sW > sH * 1.5) {
+             sW = Math.round(sW / 6);
+             sx = sW; 
+          }
+      }
+
       if(img && img.complete && img.naturalWidth>0) {
-        let sW = img.naturalWidth, sH = img.naturalHeight;
-        let sx = 0;
-        if (sW > sH * 1.5) {
-          sW = Math.round(sW / 6);
-          sx = sW; // Use idle pose frame
-        }
-        
         const sprH = H * 0.82;
         const sprW = (sW/sH) * sprH;
         
@@ -394,6 +438,16 @@ function buildRoster(){
   cancelAnimationFrame(wsPreviewTimer);
   drawPreviewStage();
 }
+
+window.redrawRosterThumbnails = function() {
+  const grid = document.getElementById('ws-grid');
+  if(!grid) return;
+  const cvs = grid.querySelectorAll('.ws-head-slot .ws-head-cv');
+  for(let i=0; i<ROSTER.length; i++) {
+    if(cvs[i]) drawHeadOnly(cvs[i], ROSTER[i]);
+  }
+  if(typeof window.updateSelUI === 'function') window.updateSelUI();
+};
 
 window.goBackStage = function() {
   if (window.wsSelectingPlayer === 2) {

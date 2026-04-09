@@ -247,6 +247,7 @@ class Fighter{
     const canAct=this.state==='idle'||this.state==='walk';
     if(canAct && !roundOver && !matchOver){
       const walkSpd = 3 * (this.speedMult || 1.0);
+      let mv = false;
       if(isLeft){this.x-=walkSpd;this.state='walk';mv=true;}
       if(isRight){this.x+=walkSpd;this.state='walk';mv=true;}
       if(!mv&&this.state==='walk')this.state='idle';
@@ -398,13 +399,16 @@ function drawBoxer(ctx, f) {
   bodyY += pAnimY;        
 
   // ── RENDER HIGH-FIDELITY PIXEL ART SPRITES IF AVAILABLE ──
-  const img = SPRITES[f.rosterId];
-  if (img && img.complete && img.naturalWidth > 0) {
-    ctx.save();
-    
-    // Check if it's a multi-frame sprite sheet (e.g. 6 frame strip)
+  const data = SPRITES[f.rosterId];
+  if (!data) return;
+  
+  let img = null;
+  let sx = 0, sy = 0, sW = 0, sH = 0;
+  
+  if (data.type === 'sheet' && data.loaded && data.img.complete && data.img.naturalWidth > 0) {
+    img = data.img;
     const isSheet = img.naturalWidth > img.naturalHeight * 1.5;
-    let sx = 0, sy = 0, sW = img.naturalWidth, sH = img.naturalHeight;
+    sW = img.naturalWidth; sH = img.naturalHeight;
     
     if (isSheet) {
       // Divide by 6 frames horizontally to match the processed sheet
@@ -420,12 +424,55 @@ function drawBoxer(ctx, f) {
       
       sx = frameIdx * sW;
     }
+  } else if (data.type === 'folder' && data.loadedFrames > 0) {
+      // 1. First, map the game engine state to the exact potential image name
+      let action = 'idle';
+      const attacks = ['jab', 'cross', 'hook', 'super', 'dash', 'duck', 'hurt', 'ko', 'slip', 'walk', 'overhand', 'body', 'combo', 'kick'];
+      
+      if (attacks.includes(state)) {
+         action = state;
+         // SUPPORT FOR WALK CYCLE (walk1, walk2, etc.)
+         if (action === 'walk' && data.frames['walk1']) {
+            const walkFrame = 1 + (Math.floor(Date.now() / 100) % 6);
+            if (data.frames['walk' + walkFrame]) action = 'walk' + walkFrame;
+         }
+      } else if (state === 'upcut') {
+         action = 'uppercut';
+      } else if (state === 'block' || f.blocking) {
+         action = 'block';
+      }
+      
+      let finalImg = data.frames[action];
+      
+      // 2. Auto-Fallback: If the modder hasn't provided a specific image 
+      // (e.g. no 'jab.png'), fallback to the generic basic images they did provide!
+      if (!finalImg || !finalImg.complete || finalImg.naturalWidth <= 0) {
+          if (['jab', 'cross', 'hook', 'uppercut', 'super', 'overhand', 'body', 'combo', 'kick'].includes(action)) 
+              finalImg = data.frames['punch'];
+          else if (action === 'dash') 
+              finalImg = data.frames['lunge'] || data.frames['walk'];
+          else if (action === 'ko') 
+              finalImg = data.frames['hurt'];
+          else if (action === 'walk' || action === 'slip') 
+              finalImg = data.frames['idle'];
+      }
+      
+      // 3. Ultimate safe fallback so the game never crashes
+      img = finalImg || data.frames['idle'] || data.frames['punch'];
+      
+      if (!img || !img.complete || img.naturalWidth <= 0) return;
+      sW = img.naturalWidth; sH = img.naturalHeight;
+      sx = 0; sy = 0;
+  }
+  
+  if (img) {
+    ctx.save();
 
     // Core animation physics (Translating rigid sprite with squash/stretch!)
     ctx.translate(pAnimLungeX, bodyY);
     ctx.rotate(bodyLean * Math.PI / 180);
     // Mild procedural squash alongside frame data
-    ctx.scale(1, isSheet ? 1.0 + (pAnimSquash-1.0)*0.5 : pAnimSquash);
+    ctx.scale(1, data.type === 'sheet' && sW < img.naturalWidth ? 1.0 + (pAnimSquash-1.0)*0.5 : pAnimSquash);
 
     // Ground shadow
     ctx.fillStyle = 'rgba(0,0,0,0.28)';

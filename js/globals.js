@@ -14,15 +14,54 @@ resizeGame();
 
 // ======== SPRITE LOADER ========
 const SPRITES = {};
-const SPRITE_IDS = ['barrera','jackson','santos','titan','lee','blaze', 'thereal', 'viper', 'blitz', 'mako'];
+const SPRITE_IDS = ['barrera','lee','blaze', 'viper', 'blitz', 'mako', 'samnang', 'piti'];
+
 // Offscreen canvas used for white-background removal
 const _spriteOffC = document.createElement('canvas');
 const _spriteOffX = _spriteOffC.getContext('2d');
 function loadSprites(){
   SPRITE_IDS.forEach(id=>{
-    const img = new Image();
-    img.src = 'img/'+id+'.png?v=' + Date.now();
-    SPRITES[id] = img;
+    SPRITES[id] = { type: 'folder', frames: {}, loadedFrames: 0 };
+    // Comprehensive list of ideal boxing sprites
+    // (with built-in fallback to the basic 6: punch, lunge)
+    const actions = [
+      'idle', 'walk', 'dash', 
+      'jab', 'cross', 'hook', 'uppercut', 'super', 
+      'block', 'duck', 'slip', 
+      'hurt', 'ko', 
+      'punch', 'lunge',
+      'overhand', 'body', 'combo', 'kick',
+      'walk1', 'walk2', 'walk3', 'walk4', 'walk5', 'walk6'
+    ];
+    
+    // Test if the folder exists by checking for idle.png
+    const probe = new Image();
+    probe.onload = () => {
+      // Folder exists! Use individual action images
+      SPRITES[id].frames['idle'] = probe;
+      SPRITES[id].loadedFrames = 1;
+      if(typeof window.redrawRosterThumbnails === 'function') window.redrawRosterThumbnails();
+      
+      actions.filter(a => a !== 'idle').forEach(action => {
+        const fallImg = new Image();
+        fallImg.onload = () => { SPRITES[id].frames[action] = fallImg; SPRITES[id].loadedFrames++; };
+        fallImg.onerror = () => { /* Optional frame not found, fallback logic in engine will handle it */ };
+        fallImg.src = `img/${id}/${action}.png`;
+      });
+    };
+    probe.onerror = () => {
+      // Folder probe failed? Fallback to standard spritesheet!
+      SPRITES[id].type = 'sheet';
+      SPRITES[id].loaded = false;
+      SPRITES[id].img = new Image();
+      SPRITES[id].img.onload = () => { 
+        SPRITES[id].loaded = true; 
+        if(typeof window.redrawRosterThumbnails === 'function') window.redrawRosterThumbnails();
+      };
+      SPRITES[id].img.src = `img/${id}.png`;
+    };
+    
+    probe.src = `img/${id}/idle.png`;
   });
 }
 loadSprites();
@@ -124,18 +163,15 @@ const ROSTER = [
   { id:'barrera',  name:'BARRERA',     archetype:'Slugger',
     skin:'#d4956a', skinD:'#b87548', hair:'#1a1010', trunkC:'#111111', gloveC:'#cc1100',
     pow:4, height:3, flying:2, spd:3, stam:3, def:4, beard:true, sh:190 },
-  { id:'jackson',  name:'JACKSON',     archetype:'Speedster',
-    skin:'#5c3a1e', skinD:'#3d2510', hair:'#111111', trunkC:'#004400', gloveC:'#cc1100',
-    pow:3, height:4, flying:4, spd:5, stam:3, def:3, sh:185 },
-  { id:'santos',   name:'SANTOS',      archetype:'All-Rounder',
-    skin:'#c8885a', skinD:'#a86840', hair:'#1a1010', trunkC:'#006600', gloveC:'#cc1100',
-    pow:3, height:3, flying:3, spd:4, stam:4, def:3, sh:182 },
-  { id:'titan',    name:'TITAN',       archetype:'Tank',
-    skin:'#e0a060', skinD:'#c07840', hair:'#0a0808', trunkC:'#550000', gloveC:'#881100',
-    pow:5, height:5, flying:1, spd:1, stam:5, def:5, beard:true, sh:200 },
-  { id:'thereal',  name:'THE REAL',    archetype:'Boxing Purist',
-    skin:'#9e6440', skinD:'#7a492b', hair:'#111111', trunkC:'#eeeeee', gloveC:'#111111',
-    pow:4, height:4, flying:1, spd:4, stam:4, def:5, beard:false, sh:188 },
+  { id:'lee',      name:'LEE',         archetype:'Muay Thai',
+    skin:'#c27b40', skinD:'#9a5b28', hair:'#4d2c14', trunkC:'#ffaa00', gloveC:'#c8102e',
+    pow:3, height:3, flying:5, spd:5, stam:4, def:3, sh:180 },
+  { id:'samnang',  name:'SAMNANG',     archetype:'Kun Khmer',
+    skin:'#d4a373', skinD:'#b5835a', hair:'#111111', trunkC:'#1a5fc8', gloveC:'#c8102e',
+    pow:4, height:3, flying:4, spd:4, stam:5, def:3, beard:false, sh:178 },
+  { id:'piti',     name:'PITI',        archetype:'Brawler',
+    skin:'#e2c5a0', skinD:'#c3a47d', hair:'#2c1910', trunkC:'#5a2020', gloveC:'#e03030',
+    pow:5, height:4, flying:2, spd:3, stam:4, def:2, beard:true, sh:192 },
 ];
 
 
