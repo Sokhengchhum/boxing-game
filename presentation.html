@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SuperFight — Presentation</title>
+  <link rel="stylesheet" href="landing.css">
+  <style>
+    /* Presentation Specific Styles */
+    body {
+      overflow: hidden; /* Hide scrollbars */
+      margin: 0;
+      background: var(--bg-dark);
+    }
+    .presentation-bg {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: url('img/screenshot_gameplay.png') center/cover no-repeat;
+      opacity: 0.15;
+      filter: blur(4px) grayscale(50%);
+      z-index: 0;
+      pointer-events: none;
+    }
+    .slides-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .slide {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.6s, transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      transform: translateX(100px) scale(0.95);
+    }
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(0) scale(1);
+      z-index: 10;
+    }
+    .slide.prev {
+      transform: translateX(-100px) scale(0.95);
+    }
+    .nav-buttons {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      z-index: 100;
+    }
+    .nav-btn {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: var(--text-primary);
+      font-family: var(--font-accent);
+      font-size: 18px;
+      letter-spacing: 2px;
+      padding: 12px 32px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .nav-btn:hover:not(:disabled) {
+      background: rgba(255,170,0,0.2);
+      border-color: var(--accent-gold);
+      color: #fff;
+    }
+    .nav-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+    .slide-content {
+      max-width: 900px;
+      width: 100%;
+      text-align: center;
+      background: var(--bg-card);
+      padding: 60px;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: var(--radius);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      position: relative;
+    }
+    .slide-content::before {
+      content:'';
+      position:absolute; top:0; left:0; width:100%; height:3px;
+      background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+    }
+    .slide-title {
+      font-family: var(--font-title);
+      font-size: clamp(40px, 6vw, 70px);
+      letter-spacing: 3px;
+      margin-bottom: 20px;
+      color: var(--text-primary);
+    }
+    .slide-text {
+      font-size: 20px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 30px;
+    }
+    .slide-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 30px;
+      text-align: left;
+      margin-top: 30px;
+    }
+    .progress-bar-container {
+      position: fixed;
+      bottom: 0; left: 0;
+      width: 100%;
+      height: 6px;
+      background: rgba(255,255,255,0.05);
+      z-index: 100;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-gold), #ff6600);
+      width: 0%;
+      transition: width 0.4s ease;
+      box-shadow: var(--glow-gold);
+    }
+    .close-btn {
+      position: fixed;
+      top: 30px; right: 40px;
+      color: var(--text-secondary);
+      font-family: var(--font-accent);
+      font-size: 18px;
+      letter-spacing: 2px;
+      text-decoration: none;
+      z-index: 100;
+      transition: color 0.2s;
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+    }
+    .close-btn:hover {
+      color: #fff;
+      background: rgba(255,255,255,0.1);
+    }
+    .indicator-dots {
+      position: fixed;
+      right: 40px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 100;
+    }
+    .indicator-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.2);
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .indicator-dot.active {
+      background: var(--accent-gold);
+      border-color: var(--accent-gold);
+      box-shadow: 0 0 10px rgba(255,170,0,0.5);
+    }
+    @media (max-width: 768px) {
+      .slide-content { padding: 40px 20px; }
+      .nav-buttons { bottom: 20px; }
+      .close-btn { top: 20px; right: 20px; font-size: 14px; }
+      .indicator-dots { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="presentation-bg"></div>
+
+  <!-- Floating particles -->
+  <div class="particle-field" id="particles"></div>
+
+  <div class="progress-bar-container">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+  
+  <a href="index.html" class="close-btn">&times; EXIT PRESENTATION</a>
+
+  <div class="indicator-dots" id="indicatorDots"></div>
+
+  <div class="slides-container" id="slidesContainer">
+    <!-- Slide 1: Intro -->
+    <div class="slide active">
+      <div class="slide-content">
+        <span class="hero-badge" style="margin-bottom:20px; display:inline-block;">PROJECT PRESENTATION</span>
+        <h1 class="slide-title" style="background: linear-gradient(135deg, #ffaa00, #ff6600); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">SUPER FIGHT</h1>
+        <p class="slide-text">A high-fidelity retro arcade boxing experience, engineered entirely for the modern web browser.</p>
+      </div>
+    </div>
+
+    <!-- Slide 2: Tools & Technology -->
+    <div class="slide">
+      <div class="slide-content">
+        <span class="hero-badge" style="color:var(--accent-red); background:rgba(200,16,46,0.1); border-color:rgba(200,16,46,0.3);">BEHIND THE SCENES</span>
+        <h2 class="slide-title">TOOLS AND LANGUAGES</h2>
+        <div class="slide-grid">
+          <div>
+            <div style="font-size:32px; margin-bottom:10px;">🤖</div>
+            <h3 style="color:var(--text-primary); font-family:var(--font-title); letter-spacing:1px; margin-bottom:8px;">AI Assistants</h3>
+            <p style="color:var(--text-secondary); font-size:16px;">Developed with the power of modern AI tools: <b>Gemini, Claude, Antigravity, ChatGPT, GitHub Copilot, Cursor, and Midjourney</b>.</p>
+          </div>
+          <div>
+            <div style="font-size:32px; margin-bottom:10px;">💻</div>
+            <h3 style="color:var(--text-primary); font-family:var(--font-title); letter-spacing:1px; margin-bottom:8px;">Programming Languages</h3>
+            <p style="color:var(--text-secondary); font-size:16px;">Built entirely with core web technologies: <b>Vanilla JavaScript</b> for logic, <b>HTML5</b> for structure and rendering, and <b>CSS3</b> for styling.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 3: About & Controls -->
+    <div class="slide">
+      <div class="slide-content" style="max-width:1050px;">
+        <span class="hero-badge" style="color:var(--accent-cyan); background:rgba(0,229,255,0.1); border-color:rgba(0,229,255,0.3);">HOW TO PLAY</span>
+        <h2 class="slide-title">ABOUT AND CONTROLS</h2>
+        
+        <div style="display:flex; gap:40px; text-align:left; margin-top:30px; align-items:flex-start; flex-wrap:wrap;">
+          <!-- About Section -->
+          <div style="flex:1; min-width:300px;">
+            <h3 style="color:var(--text-primary); font-family:var(--font-title); letter-spacing:1px; margin-bottom:12px;">ABOUT SUPER FIGHT</h3>
+            <p style="color:var(--text-secondary); font-size:16px; line-height:1.7; margin-bottom: 20px;">
+              <b>SuperFight</b> is an adrenaline-fueled retro arcade boxing game that pits pixel-art fighters against each other in high-stakes combat. 
+              Experience deep mechanics including slips, pulls, dodges, and a wide array of devastating punches.
+            </p>
+            <p style="color:var(--text-secondary); font-size:16px; line-height:1.7;">
+              Go head-to-head with adaptive AI or challenge your friends in local 2-Player Versus mode! Build your Super meter by landing clean shots and unleash thunderous finishing moves to secure the knockout.
+            </p>
+          </div>
+          
+          <!-- Controls Section -->
+          <div style="flex:1; min-width:300px; background:rgba(255,255,255,0.03); padding:28px; border-radius:12px; border:1px solid rgba(255,255,255,0.06); box-shadow:0 10px 30px rgba(0,0,0,0.3);">
+            <h3 style="color:var(--accent-cyan); font-family:var(--font-title); letter-spacing:1px; margin-bottom:20px;">ESSENTIAL CONTROLS</h3>
+            
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 12px 18px; align-items: center;">
+              <span style="display:inline-flex; align-items:center; justify-content:center; padding:4px 10px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:6px; font-family:'Barlow Condensed', monospace; font-weight:700; font-size:14px; color:var(--accent-gold); box-shadow:0 2px 0 rgba(0,0,0,0.4);">A / D</span>
+              <span style="font-size:15px; color:var(--text-secondary);">Move Left / Right</span>
+              
+              <span style="display:inline-flex; align-items:center; justify-content:center; padding:4px 10px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:6px; font-family:'Barlow Condensed', monospace; font-weight:700; font-size:14px; color:var(--accent-gold); box-shadow:0 2px 0 rgba(0,0,0,0.4);">J / K / L</span>
+              <span style="font-size:15px; color:var(--text-secondary);">Jab / Cross / Hook</span>
+              
+              <span style="display:inline-flex; align-items:center; justify-content:center; padding:4px 10px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:6px; font-family:'Barlow Condensed', monospace; font-weight:700; font-size:14px; color:var(--accent-gold); box-shadow:0 2px 0 rgba(0,0,0,0.4);">O / Z</span>
+              <span style="font-size:15px; color:var(--text-secondary);">Block / Duck</span>
+              
+              <span style="display:inline-flex; align-items:center; justify-content:center; padding:4px 10px; background:var(--accent-gold); border:1px solid rgba(255,255,255,0.15); border-radius:6px; font-family:'Barlow Condensed', monospace; font-weight:700; font-size:14px; color:#000; box-shadow:0 2px 0 rgba(0,0,0,0.4);">P</span>
+              <span style="font-size:15px; color:#fff; font-weight:600;">⚡ Super Punch</span>
+            </div>
+            
+            <div style="margin-top:20px; font-size:13px; color:var(--text-muted); border-top:1px solid rgba(255,255,255,0.06); padding-top:16px;">
+              <i>P2 uses Arrow Keys and NumPad for local versus mode.</i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 4: Roster -->
+    <div class="slide">
+      <div class="slide-content">
+        <span class="hero-badge">THE CAST</span>
+        <h2 class="slide-title">DYNAMIC ROSTER</h2>
+        <p class="slide-text">Procedurally animated joints overlay hand-crafted pixel art for fluid combat motion.</p>
+        <div style="display:flex; justify-content:center; gap:30px; margin-top:20px; flex-wrap:wrap;">
+          <div style="text-align:center;">
+             <img src="img/barrera.png" alt="Barrera" style="height:140px; filter:drop-shadow(0 0 16px rgba(200,16,46,0.4)); margin-bottom:10px; border-bottom:2px solid var(--accent-red);">
+             <div style="font-family:var(--font-accent); letter-spacing:2px; font-size:14px; color:var(--text-muted);">SLUGGER</div>
+          </div>
+          <div style="text-align:center;">
+             <img src="img/jackson.png" alt="Jackson" style="height:140px; filter:drop-shadow(0 0 16px rgba(0,100,255,0.4)); margin-bottom:10px; border-bottom:2px solid var(--accent-blue);">
+             <div style="font-family:var(--font-accent); letter-spacing:2px; font-size:14px; color:var(--text-muted);">SPEEDSTER</div>
+          </div>
+          <div style="text-align:center;">
+             <img src="img/titan.png" alt="Titan" style="height:140px; filter:drop-shadow(0 0 16px rgba(255,170,0,0.4)); margin-bottom:10px; border-bottom:2px solid var(--accent-gold);">
+             <div style="font-family:var(--font-accent); letter-spacing:2px; font-size:14px; color:var(--text-muted);">TANK</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 5: Call to action -->
+    <div class="slide">
+      <div class="slide-content">
+        <h2 class="slide-title">THE RING AWAITS</h2>
+        <p class="slide-text">You've seen the specs. Now feel the impact.</p>
+        <div style="margin-top: 40px;">
+            <a href="boxing.html" class="nav-cta" style="font-size:24px; padding: 16px 48px;">🥊 ENTER THE RING</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-buttons">
+    <button class="nav-btn" id="btnPrev" onclick="prevSlide()">&#8592; PREV</button>
+    <button class="nav-btn" id="btnNext" onclick="nextSlide()">NEXT &#8594;</button>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const progressBar = document.getElementById('progressBar');
+    const dotsContainer = document.getElementById('indicatorDots');
+    const btnPrev = document.getElementById('btnPrev');
+    const btnNext = document.getElementById('btnNext');
+
+    // Create dots
+    slides.forEach((_, i) => {
+        const dot = document.createElement('div');
+        dot.className = 'indicator-dot';
+        dot.onclick = () => goToSlide(i);
+        dotsContainer.appendChild(dot);
+    });
+    const dots = document.querySelectorAll('.indicator-dot');
+
+    function updateSlides() {
+      slides.forEach((slide, index) => {
+        slide.classList.remove('active', 'prev');
+        if (index === currentSlide) {
+          slide.classList.add('active');
+        } else if (index < currentSlide) {
+          slide.classList.add('prev');
+        }
+      });
+      
+      dots.forEach((dot, i) => {
+          dot.classList.toggle('active', i === currentSlide);
+      });
+
+      progressBar.style.width = ((currentSlide + 1) / slides.length) * 100 + '%';
+      
+      btnPrev.disabled = currentSlide === 0;
+      btnNext.disabled = currentSlide === slides.length - 1;
+    }
+
+    function goToSlide(n) {
+        currentSlide = n;
+        updateSlides();
+    }
+
+    function nextSlide() {
+      if (currentSlide < slides.length - 1) {
+        currentSlide++;
+        updateSlides();
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updateSlides();
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft') {
+        prevSlide();
+      }
+    });
+
+    // Subtly animate background particles reusing the landing logic
+    function spawnParticles(containerId, count) {
+      const field = document.getElementById(containerId);
+      if (!field) return;
+      for (let i = 0; i < count; i++) {
+        const p = document.createElement('div');
+        p.style.position = 'absolute';
+        p.style.left = Math.random() * 100 + '%';
+        p.style.bottom = -(Math.random() * 20) + '%';
+        const size = (2 + Math.random() * 4) + 'px';
+        p.style.width = size; p.style.height = size;
+        p.style.borderRadius = '50%';
+        p.style.background = 'rgba(255,170,0,' + (0.1 + Math.random()*0.2) + ')';
+        p.style.transition = 'top 10s linear';
+        field.appendChild(p);
+        
+        // Simple procedural float (since we didn't include the full CSS animation)
+        let yPos = 100;
+        let speed = 0.05 + Math.random() * 0.1;
+        function floatUp() {
+            yPos -= speed;
+            if (yPos < -10) yPos = 110;
+            p.style.top = yPos + '%';
+            requestAnimationFrame(floatUp);
+        }
+        floatUp();
+      }
+    }
+    spawnParticles('particles', 40);
+
+    updateSlides();
+  </script>
+</body>
+</html>

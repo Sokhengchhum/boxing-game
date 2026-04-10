@@ -1,5 +1,5 @@
 /**
- * SuperPunch — Authentication Module
+ * SuperFight — Authentication Module
  * Handles local user registration and login simulated via LocalStorage.
  */
 

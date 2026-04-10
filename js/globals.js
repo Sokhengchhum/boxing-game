@@ -14,7 +14,7 @@ resizeGame();
 
 // ======== SPRITE LOADER ========
 const SPRITES = {};
-const SPRITE_IDS = ['barrera','lee','blaze', 'viper', 'blitz', 'mako', 'samnang', 'piti'];
+const SPRITE_IDS = ['barrera','lee','blaze', 'viper', 'blitz', 'mako', 'samnang', 'piti', 'meii'];
 
 // Offscreen canvas used for white-background removal
 const _spriteOffC = document.createElement('canvas');
@@ -143,10 +143,12 @@ const keys={};
 document.addEventListener('keydown',e=>{keys[e.key]=true;keys[e.code]=true;e.preventDefault();});
 document.addEventListener('keyup',e=>{keys[e.key]=false;keys[e.code]=false;});
 
-const P1CTL={left:'a',right:'d',up:'w',pull:'s',slip:'q',duck:'z',jab:'f',cross:'g',upcut:'t',overhand:'e',body:'c',block:'r',dash:'x',hook:'b',super:'v',kick:'h',combo:'y'};
-const P2CTL={left:'ArrowLeft',right:'ArrowRight',up:'ArrowUp',pull:'ArrowDown',slip:'p',duck:'m',jab:'k',cross:'l',upcut:'i',overhand:'u',body:',',block:'o',dash:'n',hook:'j',super:';',kick:'/',combo:'0'};
+// P1 Optimized for Single Player (Left/Right hand split)
+const P1CTL={left:'a',right:'d',up:'w',pull:'s',slip:'q',duck:'z',dash:'c',jab:'j',cross:'k',hook:'l',upcut:'u',overhand:'i',body:'m',block:'o',super:'p',kick:'n',combo:'b'};
+// P2 shifted to Numpad to avoid conflicts with P1
+const P2CTL={left:'ArrowLeft',right:'ArrowRight',up:'ArrowUp',pull:'ArrowDown',slip:'Numpad7',duck:'Numpad8',dash:'Numpad9',jab:'Numpad1',cross:'Numpad2',hook:'Numpad3',upcut:'Numpad4',overhand:'Numpad5',body:'Numpad0',block:'Numpad6',super:'NumpadAdd',kick:'NumpadSubtract',combo:'NumpadMultiply'};
 
-const tMap = {'t-left':'a', 't-right':'d', 't-up':'w', 't-jump':'w', 't-pull':'s', 't-slip':'q', 't-duck':'z', 't-block':'r', 't-super':'v', 't-jab':'f', 't-cross':'g', 't-upcut':'t', 't-over':'e', 't-body':'c', 't-kick':'h', 't-combo':'y'};
+const tMap = {'t-left':'a', 't-right':'d', 't-up':'w', 't-jump':'w', 't-pull':'s', 't-slip':'q', 't-duck':'z', 't-block':'o', 't-super':'p', 't-jab':'j', 't-cross':'k', 't-upcut':'u', 't-over':'i', 't-body':'m', 't-kick':'n', 't-combo':'b'};
 for(let id in tMap) {
   const el = document.getElementById(id);
   if(!el) continue;
@@ -172,6 +174,9 @@ const ROSTER = [
   { id:'piti',     name:'PITI',        archetype:'Brawler',
     skin:'#e2c5a0', skinD:'#c3a47d', hair:'#2c1910', trunkC:'#5a2020', gloveC:'#e03030',
     pow:5, height:4, flying:2, spd:3, stam:4, def:2, beard:true, sh:192 },
+  { id:'meii',     name:'MEII',        archetype:'Balanced',
+    skin:'#e2c5a0', skinD:'#c3a47d', hair:'#111111', trunkC:'#cc1100', gloveC:'#1a5fc8',
+    pow:3, height:3, flying:3, spd:4, stam:4, def:4, beard:false, sh:180 },
 ];
 
 
