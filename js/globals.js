@@ -14,7 +14,7 @@ resizeGame();
 
 // ======== SPRITE LOADER ========
 const SPRITES = {};
-const SPRITE_IDS = ['barrera','lee','blaze', 'viper', 'blitz', 'mako', 'samnang', 'piti', 'meii'];
+const SPRITE_IDS = ['barrera','lee','blaze', 'viper', 'blitz', 'mako', 'samnang', 'piti'];
 
 // Offscreen canvas used for white-background removal
 const _spriteOffC = document.createElement('canvas');
@@ -174,9 +174,6 @@ const ROSTER = [
   { id:'piti',     name:'PITI',        archetype:'Brawler',
     skin:'#e2c5a0', skinD:'#c3a47d', hair:'#2c1910', trunkC:'#5a2020', gloveC:'#e03030',
     pow:5, height:4, flying:2, spd:3, stam:4, def:2, beard:true, sh:192 },
-  { id:'meii',     name:'MEII',        archetype:'Balanced',
-    skin:'#e2c5a0', skinD:'#c3a47d', hair:'#111111', trunkC:'#cc1100', gloveC:'#1a5fc8',
-    pow:3, height:3, flying:3, spd:4, stam:4, def:4, beard:false, sh:180 },
 ];
 
 
